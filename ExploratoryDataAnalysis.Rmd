@@ -1,0 +1,467 @@
+# Exploratory Data Analysis
+### Jonathan Marshall
+
+```{r, setup, echo=FALSE}
+library(knitr)
+opts_chunk$set(eval=FALSE)
+```
+
+## Introduction
+
+Today we'll be covering some of the key tasks that are almost always done when first looking at a data set. This includes
+
+- Getting data into R
+- Getting data into the right shape
+- Summarising the data in useful ways
+
+Before we start, though, it's useful to know a little bit about how R stores data.
+
+## Data types
+
+In R there are a bunch of different fundamental data types, and then ways to combine those types into more complicated objects.
+
+### Scalers
+
+The main scaler (single value) types are:
+
+ - numeric (numbers)
+ - integer (integer numbers)
+ - character (for character strings)
+ - logical (TRUE/FALSE) Intepretable as 1 and 0 in some contexts.
+ - complex (for complex numbers)
+ - missing values (there's a different missing value for each scaler type).
+
+By default, most numbers are numeric in R. i.e. it doesn't try and store things as integer when you just input numbers. 
+
+*Try the following*
+
+```{r}
+class(2)
+class(integer(2))
+class(integer(2)+3)
+class(integer(2)+3L)
+```
+
+So, if you want to force R to consider numbers as integers, add an `L` afterwards. This is in contrast to other programming languages which typically default to integers as integers rather than doubles (numeric).
+
+Where it makes sense, most of these types are 'promoted' to a more general type when combined with more general types via arithmetic and other operators.
+
+*Try the following*
+
+```{r}
+2 + TRUE
+2.76 + 3L
+sqrt(3L)
+class(sqrt(4L))
+(3-2i) * 2L
+class(2L + TRUE)
+class(2 + TRUE)
+```
+
+### Vectors
+
+Most computation in R operates on vectors of scalers. These are one-dimensional arrays (i.e. a single row or column in a spreadsheet) of particular types. There's a couple of ways to create vectors but the most common is to concatenate scalers together using the `c()` function.
+
+> Functions in R are *mostly* lower-case names and always require parentheses in order to execute the function, even if that function takes no parameters. If you call a function without parentheses you get back the R object that describes the function (i.e. source code for the function). 
+
+*Try the following*
+
+```{r}
+x = c(1,4,5,6)
+y = c(1L,4L,5L,6L)
+class(x)
+class(y)
+str(x)
+str(y)
+x+y
+class(x+y)
+z = c("bob", "fred", "george")
+str(z)
+w = c(TRUE, FALSE, TRUE, FALSE)
+str(w)
+w + y
+```
+
+As you have seen above, any operations applied to a vector operate term-by-term and function in the same manner as with scalers. Thus, you get the type promotion in the same way.
+
+One of the **really** neat things about R is how it recycles elements when you try and combine two vectors of differing lengths. What it does is it recycles the elements in the shorter vector until it's the same length as the longer one and then does the operation asked for.
+
+*Try working out what the following will produce, then check your answer with what R gives.*
+
+```{r}
+c(1,2,3,4,5) + 4
+c(1,2,3,4,5) + c(2,4)
+sum(c(1,2,3,4,5,6) * c(0,1))
+sum(c(1,2,3,4,5,6) * c(1,0))
+```
+
+There's a couple of other ways to create commonly used vectors, particularly when you just want to repeat the same item (`rep`) or when you want a sequence of numbers (`seq`) and there's also a short-hand for sequence of integers (`1:6`).
+
+*Write some R code to produce*
+
+ - a sequence of integers from 10 to 20.
+ - a sequence of numbers from 0 to 1, increasing by 0.1.
+ - a sequence of numbers from 0 to 1 of length 50.
+ - a vector of thirty 3's.
+ - a vector of twenty 1's, twenty 2's and twenty 3's.
+
+### Indexing vectors
+
+Vectors are indexed using square brackets, with either an integer (or vector of integers) specifying the offset, or with a logical vector of the same length (or one recycled to the same length). A negative index will return all items other than the indices specified.
+
+*Try the following*
+
+```{r}
+x = rnorm(100)
+x[5:8]
+x[c(1,5,6)]
+x[c(TRUE, FALSE)]
+x[-10]
+x[-(1:6)]
+x[10.9]
+```
+
+One trap is the last one - R will truncate the numeric value to an integer.
+
+### Factors
+
+Factors are categorical or grouping variables in R. A factor has different levels, one for each category or group. They can either be ordered or unordered. By default they're unordered. Ordering normally doesn't matter all that much for most situations, as long as the order that R has stored the levels makes sense. You'll find that given no information on ordering, R will order the levels of a factor according to alphabetical ordering.
+
+They're somewhat special, as R basically treats them as named integer values. The underlying data is just the integer corresponding to the level (i.e. 1 is the first level, 2 is the second) and then R stores the names of each level separately as an attribute of the object. Thus, factors can be treated as integers in some cases that are useful (such as when choosing colours which can also be described as integer lookups in a palette) and in some that may not be.
+
+*Try the following*
+
+```{r}
+x = factor(c("bob", "george", "fred"))
+x
+x+2
+y = c(10,15,20)
+y[x]
+```
+
+Ofcourse R can also use vectors of character strings as well, and in many cases these may be what you want instead of the factor variable, but it depends on the context.
+
+One thing to watch in particular is where the names are numbers that don't correspond to integers. If so, they don't behave the way you expect!
+
+*Try the following*
+
+```{r}
+x = factor(c(2.0, 1.0, 4.0))
+x
+y = 1:4
+y[x]
+```
+
+### Data frames
+
+A data frame is a collection of vectors of the same length that are used to store rectangular data. They don't have to be the same type and are the predominant way that data are stored in R for analysis. Data frames are indexed using square brackets in the same way vectors are, using two indices separated by a comma (for row and column).
+
+*Try the following*
+
+```{r}
+d = data.frame(name = c("bilbo", "samwise", "pippen", "frodo", "merry"), ring_bearer = c(T,T,F,T,F))
+d[1,]
+d[,1]
+d[,2]
+d[1:3,1]
+d[2]
+d$name
+d$name[d$ring_bearer]
+```
+
+## Getting data into R
+
+R can load data from just about any data source you can think of. Usually when someone has some data in some obscure format, someone else has had to read that data into R in the past and has written a package to do so.
+
+Very occasionally though you come across a format that can't be read directly. Usually this isn't much of a problem though as most systems that store data have a way to export that data into a more friendly format.
+
+Formats that R can read are:
+
+### CSV files
+
+The **nicest** format to use is something that will work anywhere. Comma separated value files (CSV) is my go-to. You can normally save and load it from anywhere, and as it's plain-text you can read it by hand if you have to. There's a few things to be aware of though.
+
+1. It's plain text, so it can be quite large for large datasets, particularly if you have a lot of repeated values in it (e.g. a column for categories that have long-ish category names). However, plain text files compress well, so you can always zip it up to move it places (plus, storage is cheap/free and transfer speeds are fast!)
+
+2. It's plain text, so you need to be careful of how items are stored. There are two main frustrations:
+
+    - spaces or other whitespace characters in fields instead of missing data.
+    - dates and times. The **best** thing to do is stick to 2014-03-04 and 13:57:43 formats. Be careful with what Excel does: it will often store things in very strange ways that don't translate well to a .csv file.
+
+3. It's comma separated, so you need to be careful of commas in fields. The idea is to quote any fields that contain commas (but then you get problems with fields that contain quotes...) Escaping can help sometimes (e.g. using backslash quote).
+
+### Tab or space-delimited text files
+
+These are equivalent to CSV files really - the only difference is the delimiter is a tab character or other whitespace. As long as it is actually a tab character then fields that contain spaces or commas are no problem.
+
+Otherwise has the same issues.
+
+### Formats from other packages
+
+The `foreign` package can load data formats used by a bunch of different statistical software such as Epi Info, Minitab, S, SAS, SPSS, Stata, Systat and Weka and for reading and writing some dBase files.
+
+### Excel
+
+There are several packages to read in Excel files. The **best** is the `readxl` package which is relatively recent. This is built on top of opensource xls and xlsx libraries and is really nicely designed.
+
+It takes care of dates in particular which is nice (i.e. it will recognise and convert dates and times to the appropriate R objects), and also has some nicer defaults such as not converting string columns to a factor.
+
+### Databases
+
+We'll get into how to read directly from databases later on when we look at `dplyr` and other packages intended for processing large data. Suffice to say that R can read from MySQL, Access, MSSQL, PostgresSQL, MariaDB and so on. Name a database and there's likely an R package to contect to it.
+
+### Things to watch out for
+
+First off, R likes **tidy** data which we'll get to below. If the data aren't tidy, then generally you'll still be able to read it in (perhaps with some cludging of the parameters in `read.csv` or `read.table`) and will then be tasked with cleaning it up.
+
+Even where the data are tidy, however, there are a few things to watch out for.
+
+- All character strings are treated as factors in `read.csv` and `read.table`. This can be problematic, particularly if you need to process the strings in some way (e.g. break the string down into parts if it is an identifier or something), as you'll need to convert everything back to a string again. This can be done with `as.character`.
+
+- Dates. Often these are just read in as character strings, which are then processed as factors. Thus you need to `as.character` to get them back to character strings, and then `as.Date` or similar to convert to a date if necessary.
+
+- Numbers not read as numbers. This can occur if there's a character in one of the otherwise numeric columns. e.g. it might be due to a space being present in a cell or some other string signifying a missing value. In this case the column may be treated as a character string which may then cause it to become a factor. In this case using `as.numeric` to convert to numbers will not work as that will give the integers representing the different levels. You instead want `as.numeric(as.character(foo))`.
+
+## Getting data into shape
+
+### Tidy data
+
+Tidy data in R is a rectangular array that
+
+- Has a header row with a short, descriptive name for each column. Ideally with no spaces.
+- Each additional row represents a single observation in the data set.
+- Each column represents a variable.
+- No extras such as totals or summary rows or columns.
+- Columns are correctly encoded. i.e. numbers as numbers, groups as groups.
+- Missing values are just missing. Don't encode them as something else.
+- Dates and times are in a consistent format (2015-02-03)
+
+In many cases the data won't be of this type. We'll first start by loading in some tidy data and see some of the differences between CSV and Excel. 
+
+*Try the following*
+ 
+ - Use `read.csv`, `read.table` and `read_excel` (from the `readxl` package) to read in `life.csv`, `life.txt` and `life.xlsx` respectively.
+ - Once done, take a look at the data in each, the structure of the data (using `str`) and the class (using `class`).
+ - You should be able to get the same data under each of the reading functions, perhaps with some setting of parameters.
+
+### Making data tidy
+
+If you have control over the raw data, then you can consider fixing up any data issues in something like Excel, or in the database etc. directly.
+
+Alternatively, you can consider making things tidy from R. R can definitely do any tidying required, but some things are easier than others. R can easily
+
+ - Skip over a bunch of rows that aren't meaningful using the `skip` parameter.
+ - Drop columns or rows you don't need.
+ - Translate a coded missing value, as long as it is consistent.
+ - Translate column types.
+ - Resolve dates.
+ 
+*Try loading `life_junk.xlsx` and altering that into a usable form.*
+
+ - The `skip` and `na` parameters will be useful, as will using negative indexing to remove rows you don't want.
+
+### Merging data across data sets
+
+We'll look at some fancier ways to do this when we look at `dplyr` and databases later, but a simple way to merge data from two data frames is to use the `merge` function. This requires an identifier for each row across the two data frames so it can match the rows up. The syntax is `merge(x, y, by)` where `by` specifies the column to merge on.
+
+Let's see if we can tidy up the `life_junk` data frame a little more by creating a new data frame that holds the continent information and then merging that dataframe into the other.
+
+*Try the following*
+
+ - Create a new data frame to hold the continent information that was present in the `life_junk.xlsx` sheet. Just do this by hand.
+ - Use the `merge` function to merge this into the `life_junk` data frame.
+ - Get rid of the old column and reorder them.
+ - There's another, quicker, way to do this same thing. Any idea what it is?
+
+### Missing values
+
+Missing values can be found using `is.na`. The `summary` command on a data frame will also give you info on missing values, and there are various functions available such as `complete.cases` or `na.omit` for returning which rows are complete or returning a dataset with missing data removed.
+
+One thing to be aware of is that missing values can cause problems when processing data, particularly when logical expressions are involved.
+
+*Try the following*
+
+```{r}
+logic = c(TRUE, NA, FALSE)
+which(!logic)
+which(logic)
+which(is.na(logic))
+x=1:3
+x[logic]
+x[!logic]
+x[is.na(logic)]
+```
+
+## Exploratory data analysis
+
+Now that we know how to get data into R, and we know how to tidy it up (at least a bit) we can start looking at doing
+some exploratory analysis and producing tabular or graphical summaries.
+
+### Tabular summaries
+
+One of the first things I do once I get data in is to do a `summary`. This just produces suitable summary statistics for
+each column in a data frame. For numeric columns (and dates or times) it produces the five number summary (min, max, median, quartiles) and the mean. For factors it counts the number in each group, and for strings it just tells you how many observations you have.
+
+From there you can look at other tabular summaries, particularly where groups are present. The `table` command is useful for these. This can tabulate or cross-tabulate to count the number of observations across multiple groups. Other useful commands are `tapply` which is used to apply a function to one column broken up by another grouping column. For example you can compute group means or summaries using this.  The `interaction` command can be used to combine factors together to get a grouping variable that groups over all possible combinations of levels from each factor. Just using these combined with the usual summary functions such as `mean`, `summary`, `range` etc. allows quite a bit of exploration.
+
+*Try looking at summarising the life expectancy across continents from the `life` data*
+
+ - How many countries are there per continent?
+ - What is the mean and range of the life expectancies from each continent?
+
+### Graphical summaries
+
+Graphics in R is broken up into a number of graphical libraries. The main ones are
+
+ - Base (in the `graphics` package).
+ - lattice (from the `lattice` package) for Trellis based graphics.
+ - ggplot2 (from the `ggplot2` package) for graphics based on the Grammar of Graphics paradigm.
+ - grid (from the `grid` package) for a low-level system to build graphics up. Maintains a hierarchical, systematic structure.
+ 
+We'll focus on base graphics today, with a little bit of lattice thrown in for good measure. Usually each of the graphics system don't like mixing very much!
+
+Most graphics are produced using high-level commands, but can alternatively be built up using low-level commands. Often a combination thereof is required to produce a nice looking graphic.
+
+#### High-level functions
+
+High-level functions available in base are:
+
+Command   Function
+-------   --------
+`plot`    generic plotting function. Usually a scatter plot. Can take a formula expression, whereby it can produce different types of plots based on data classes.
+`boxplot` box and whisker plot. Good for comparing multiple groups.
+`pie`     pie charts.
+`barplot` bar charts.
+`hist`    histograms.
+`pairs`   pair-wise matrix of scatter plots of multiple columns.
+`contour` contour plots.
+`image`   a heatmap.
+`persp`   3D perspective plots.
+`coplot`  conditioning plots.
+
+In addition there are a bunch in the `lattice` package such as
+
+Command       Function
+-------       --------
+`xyplot`      scatter plots
+`bwplot`      box and whisker plots
+`barchart`    bar charts
+`densityplot` kernel density plots
+`dotplot`     Cleveland dot plots
+`histogram`   histograms
+`stripplot`   one-dimensional scatter plots.
+
+The high-level function `plot` along with all the `lattice` functions and a bunch of the other high-level functions can take a formula for the plot. This allows you to define the relationship(s) you want to plot. The simplest is just using
+
+```{r}
+plot(y ~ x, data=mydata)
+```
+    
+which would produce an appropriate plot of the `y` versus `x` variables in the `mydata` data frame. If y and x are numeric this will give a scatterplot, whereas if y is numeric and x is a factor it will produce boxplots. And other combinations in other cases. The `lattice` package allows this to be broken down further. For example
+
+```{r}
+xyplot(y ~ x | g, data=mydata)
+```
+
+will plot `y` versus `x` by grouping variable `g` from the data frame `mydata`. This will produce a 'small multiples' style plot where you get panels for each group g and scatter plots per panel.
+
+#### Low-level functions
+
+The low-level functions can be used to add to (possibly empty) base plots. This is useful for adding multiple series to a plot (e.g. plotting 4 time series on a plot).
+
+Commands   Function
+--------   --------
+`points`   plotting points on a scatter plot.
+`lines`    plotting continuous lines.
+`segments` plotting line segments that aren't continuous.
+`polygon`  plotting polygons.
+`text`     plotting text.
+`mtext`    plotting text in the margins.
+`axis`     setting up axes.
+`abline`   a single line from formula.
+`legend`   a plot legend.
+`title`    plot title.
+
+#### Graphical parameters
+
+In addition, there's a bunch of graphical parameters that can be specified by `par` (or alternatively specified within a high-level plotting command) that define how the plot looks, such as specifying colours, plotting characters, plotting size, margins etc.
+
+#### Graphical devices
+
+One thing to realise about R graphics is that the graphics are drawn on a device. The device could be a window on the screen or it could be a file (PNG, PDF, JPEG etc.) In normal R, each high-level graphics command overwrites the current device (unless `new` is (confusingly) set to `TRUE` via `par` first). In RStudio you'll keep your plot history so can go back through. In normal R you can open new plot devices on screen using `window()` (or `X11()` on linux). In either you can open a file device using `png()`, `pdf()` and so on. You close graphics devices with `dev.off()`. This will close a window on plain R or RStudio, and close the file device. Normally it is when closing the file device that the file is actually written.
+
+Thus, to produce a graphic in a file the usual procedure is:
+
+```{r}
+pdf("myfilename.pdf")
+...graphics commands go here...
+dev.off()
+```
+    
+> Note that when writing an R Markdown document, you don't need to care about doing this, as R Markdown creates the necessary files as it knits your document. So in many cases you don't need this facility any longer.
+
+#### Common arguments to high-level plotting commands
+
+The following are arguments used fairly regularly in high-level plotting commands.
+
+Commands      Function
+--------      --------
+`xlab`,`ylab` setting axis labels
+`xlim`,`ylim` axis limits
+`main`,`sub`  title and subtitle
+`axes`        whether to plot the axes.
+`col`         colour of points/lines. More on colours later.
+`pch`,`cex`   plotting character style and size.
+`lty`,`lwd`   line type and width.
+`type`        for the generic `plot` command, set to 'p' for points, 'l' for lines etc.
+
+#### Colours
+
+Colours in R are specified as numeric entries into a `palette()`, as colour names (which may be viewed using `colors()`) or as
+hexadecimal strings such as `#FF5686FF` which represents the RGBA portions of the colour. The A (alpha) is optional. There's a bunch
+of functions for working with colour, such as `rgb()` which generates hexadecimal strings from values of red, green, blue and (optionally) alpha.
+
+And lots, lots more! I (JM) am a big fan of using transparency along with solid dots for scatter plots, as you can then see where points overlap
+in areas of higher density by seeing the stronger colour. Transparency also helps when overlaying multiple groups. I normally do that via a combination of `col2rgb` (which converts colours to r,g,b triplets) and `rgb` for combining them with an alpha transparency back to a hexadecimal string.
+
+Nicer colours than R's defaults can be found. For colour ranges the `RColorBrewer` package is popular.
+
+In plots you can colour everything from points and lines (via `col`) to borders of polygons (`border`) to axes and titles (`col.axis`, `col.main` etc). Colours are normally defined per point, but due to R's vector recycling a single colour will do as well.
+
+#### Fonts and styles
+
+You can change the font and style in R graphics. Usually I (JM) don't really bother unless I want the graphics to match a document I'm writing (e.g. using the `tikz` device for LaTeX documents). The `font` argument specifies style (1 for plain, 2 for bold, 3 for italic, 4 for bold italic) and the `family` argument specifies the font.
+
+#### Margins
+
+By default, R uses **huge** amounts of whitespace around the plot. One of the first things that I (JM) changes with a plot is the amount of whitespace. A good alternate default is to use:
+
+```{r}
+par(mar=c(3,3,2,1), mgp=c(2,.7,0), tck=-.01)
+```
+
+#### Some common questions
+
+The following link contains information on 15 common questions on plots in R. It is well worth your while to read through them!
+
+http://blog.datacamp.com/15-questions-about-r-plots/
+
+## Onto some EDA!
+
+*Take a look at the `life` data via some graphical summaries. Try*
+
+ - A scatter plot of the life expectancy for males versus females.
+ - Histograms of male and female life expectancies.
+ - Boxplots comparing life expectancies per continent.
+ - Histograms of life expectancy within continent (using `histogram` in the `lattice` package).
+ 
+*Take a look at the `ED_workload.csv` dataset.*
+
+ - Produce counts of the number of observations per year, per hour, per day and per month. Is there anything wrong with this?
+ - Convert the `Date` column into a proper date using `as.Date` - you'll need to convert it back to character first.
+ - Fix up the Month column which you'll notice is missing September.
+ - Do some boxplots of the ED arrival count by hour, by day of week and by month.
+ - Do a plot of the ED arrival count by hour and day of week. You could try plotting against `interaction(hour,day)` or alternatively use the `lattice` bwplot function to do boxplots per day.
+ - Do some histograms of counts per month using the `histogram` function.
+ - Find mean counts per month, per day and per hour of ED arrivals.
+ 
