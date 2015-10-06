@@ -1,0 +1,205 @@
+# dplyr and the hadleyverse
+### Jonathan Marshall
+
+```{r, setup, echo=FALSE}
+library(knitr)
+opts_chunk$set(eval=FALSE)
+```
+
+## Introduction
+
+Today we'll be covering some of Hadley Wickham's packages.
+
+- dplyr
+- tidyr
+- lubridate
+- stringr
+
+In addition, we'll be looking at the forward pipe operator which is from the `magrittr` package and makes
+sequences of operations a little more intuitive.
+
+## Dataset
+
+The dataset we'll be using today is from the emergency department. It contains 80713 observations over XX variables.
+
+You can read it in using:
+
+```{r}
+ed = read.csv("data/ED_Oct6.csv", stringsAsFactors = FALSE, fileEncoding="latin1")
+```
+
+Because the dataset is so large, we don't want R to try and print out the results after each command. To prevent this, we'll wrap the data frame in `tbl_df` which overrides the `print` function to avoid printing out too many rows and columns.
+
+```{r}
+library(dplyr)
+ed = tbl_df(ed)
+ed
+```
+
+Now, when `ed` is printed (or subsets thereof) only the first 10 rows are shown, as well as the number of columns that fit the R console.
+
+### Dates and times with lubridate
+
+One of the biggest things in working with dates and times is to convert dates to and from strings, and to extract parts of dates (e.g. months, days, years) for summarising data. This is what lubridate is good for.
+
+Firstly, it had the functions `ymd`, `dmy` and `mdy` for converting from string formats into dates. These work out of the box with 'typical' date formats such as 2015-03-20 or 20/03/2015 but can also be used for less fortunate formats, and even for columns of data that aren't consistent in their formatting.
+
+A key point to note is that to convert date strings to dates, you must first have the dates as strings, rather than as factors.
+
+In addition, lubridate can also work with time strings (or date-time strings) using the `hm` and `hms` functions (and `ymd_h`, `ymd_hm`, `ymd_hms` etc.)
+
+Some examples to try
+
+```{r}
+library(lubridate)
+ymd("2015-01-30")
+ymd_hms("2015-01-30 23:11:02")
+ymd_hm("2015-01-30 3:11 pm")
+ymd("2015/1/30")
+ymd("15/1/30")
+ymd("15/1/1")
+dmy("1/1/10")
+dmy("15 1 2010")
+dmy(c("4/5/1998", "15 1 2010"))
+dmy(c("4/5/1998", "2015-01-03"))
+dmy(c("4/5/1998", "2015-01-03"))
+```
+
+Once you have a date object, you can then use lubridate functions to extract various aspects, compare dates, round dates and so on.
+
+```{r}
+date_time = ymd_hms(c(now(), "2015-05-01 3:48:41", "2015-05-01 4:48:41", "2015-05-01 23:48:41"))
+day(date_time)
+week(date_time)
+wday(date_time)
+wday(date_time, label=TRUE)
+month(date_time, label=TRUE)
+year(date_time)
+hour(date_time)
+quarter(date_time)
+round_date(date_time, "hour")
+date_time > "2015-05-01"
+interval = ymd(20150501) %--% ymd(20150502)
+date_time %within% interval
+```
+
+## dplyr
+
+dplyr is a package designed for processing large data frames (the d is for data frame).
+
+The philosophy behind dplyr is to have a relatively small number of 'verbs' that are used to manipulate
+data, with each of those verbs taking in a data frame and other parameters, and returning a data frame
+as output. dplyr never modifies in-place: The original data frame is untouched and a new copy of it is
+returned.
+
+dplyr is designed to work on either local data frames (i.e. data residing in R's memory) or on databases. Any set of dplyr commands have SQL-equivalents, and dplyr generates the SQL so that the data returned to R is minimal (i.e. filtering, sorting, summarising is done by the database).
+
+dplyr makes extensive use of **non-standard evaluation**. Thus, you can reference columns in your dataset by using their name, without quotes. This is particularly good for interactive use, as RStudio includes auto-completion for column names when it is used with piping (see below).
+
+Lastly, dplyr is designed to use lazy evaluation. Thus, it only actually does work manipulation data frames or databases when you need to use the data (e.g. to print it out) or save it to a temporary variable. This is particularly useful when piping is used, which we'll get to later, as that eliminates the need for temporary variables in many situations.
+
+*Usually this isn't a big deal though. Unless your data is big (millions of rows) having a local data frame is normally OK*.
+
+### The verbs
+
+The main verbs are
+
+- `filter` for filtering rows.
+- `arrange` for ordering rows.
+- `select`, `rename` for filtering/naming columns.
+- `mutate`, `transmute` for creating new columns.
+- `summarise` for collapsing a data frame to a single row.
+
+#### filter
+
+Filter is used to find subsets of the rows that satisfy a particular condition defined on the columns by an expression. The syntax is
+
+```{r}
+filter(data, expression1, expression2, ...)
+```
+
+where `data` is a data frame, `expression1` is an expression on the columns of `data`, as is `expression2` and so on. The expressions have to all be true for an observation to be selected. i.e. if you use two or more expressions it is equivalent to AND'ing them together.
+
+*Try the following*
+```{r}
+filter(ed, Triage == 4)
+filter(ed, Triage >= 4, Age >= 50)
+filter(ed, Length.of.ED.stay..minutes. > 6*60)
+```
+
+*Your turn*
+
+1. Filter the dataset to include only those triaged
+
+#### arrange
+
+Arrange is used to order the data by one or more columns, or expressions on the columns. The syntax is
+
+```{r}
+arrange(data, column1, column2, ...)
+```
+
+where again `data` is a data frame, `column1` etc. are (unquoted) column names. The rows are ordered first (ascending) on column1, then on column2 and so on. You can use `desc(column)` to reverse the order of a particular column (descending order).
+
+If you wish to order on an expression computed from one or more columns, the trick is to use `mutate` to create a new column with the result of the expression, then `arrange` by the new column.
+
+#### select, rename
+
+Select is used to choose a subset of columns. e.g. it is often used to drop columns that are no longer of interest. You can rename a column as you go (by naming the columns you select differently), or alternatively can use `rename` to do this. You can also re-order columns using `select`. The syntax is
+
+```{r}
+select(data, col1, col2, ...)
+```
+
+to return the `col1` and `col2` columns from the data frame `data`. You can reference columns as if they were ranges as well (e.g. `col1:col2` returns all columns from `col1` to `col2`), and can drop columns by using `-col`. You can rename columns using `foo = col2` to rename `col2` to `foo`.
+
+The syntax for `rename` is the same, with the difference being that `rename` by default keeps all unreferenced columns (in addition to the renamed ones), where as `select` only returns the referenced columns.
+
+#### mutate, transmute
+
+Mutate is used to create new columns. The syntax is
+
+```{r}
+mutate(data, newcol = expression, newcol2 = expression2, ...)
+```
+
+to create two new columns from expressions. You can replace existing columns by naming a result the same as an existing column, and can use `col=NULL` to drop a column.
+
+`transmute` uses the same syntax, but returns only the columns specified rather than all other columns as well.
+
+#### summarise
+
+The `summarise` function summarises all the rows in a data frame. It is useful for counting rows, computing summary statistics (median, mean, max, min) and so on. The syntax is
+
+```{r}
+summarise(data, name=expression, name2=expression2)
+```
+
+where `expression` computes a summary from one (or more) columns in the data. The result is a data frame with a single row containing the `name` and `name2` values.
+
+### Grouped operations
+
+The real power of dplyr comes when the above verbs are applied to groups of data. In particular, the `summarise` function allows you to compute data summaries by group, but all of the other verbs have analogues for grouped data (e.g. `arrange` on grouped data arranges within group, while `filter` filters within group, which is particularly useful for retrieving things like the top 5 results in each group).
+
+The `group_by` verb is the key function. It adds grouping information to the data frame so that subsequent commands are operated on the groups rather than on the entire data set.
+
+## tidyr
+
+The tidyr package is designed to aid in getting data frames into the 'variables as columns', 'observations as rows' form.
+
+- For splitting or combining columns.
+- For converting from wide to long format and vice-versa.
+
+We'll illustrate this use through summarising the ED data using dplyr and converting that to `wide` tabular form using `spread` for presentation.
+
+## Pipes
+
+Often when we do 
+### Strings with stringr
+
+Often when you have a data set that you want to do a set of analysis on, you find yourself having to clean
+up columns of strings. e.g. you might need to tidy up a column that has different spacing, or where some entries have a rogue space after the entry. In such cases you need to be able to process character strings
+to extract the bits you want and leave the bits you don't.
+
+All of this can be done with base R, but stringr just makes things a bit more consistent.
+
