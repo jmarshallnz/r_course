@@ -24,12 +24,14 @@ The dataset we'll be using today is from the emergency department. It contains 8
 
 You can read it in using:
 
+*Try the following*
 ```{r}
 ed = read.csv("data/ED_Oct6.csv", stringsAsFactors = FALSE, fileEncoding="latin1")
 ```
 
 Because the dataset is so large, we don't want R to try and print out the results after each command. To prevent this, we'll wrap the data frame in `tbl_df` which overrides the `print` function to avoid printing out too many rows and columns.
 
+*Try the following*
 ```{r}
 library(dplyr)
 ed = tbl_df(ed)
@@ -37,6 +39,15 @@ ed
 ```
 
 Now, when `ed` is printed (or subsets thereof) only the first 10 rows are shown, as well as the number of columns that fit the R console.
+
+We can look at what the `ed` dataset contains using `str` in base R, or there is a slightly nicer version in `dplyr` called `glimpse` that formats the output a bit better.
+
+*Try the following*
+```{r}
+glimpse(ed)
+```
+
+One of the things we notice is that there are date variables that have been interpreted as strings. We'll want to start by converting these to dates.
 
 ### Dates and times with lubridate
 
