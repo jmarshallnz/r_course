@@ -25,7 +25,7 @@ You can read it in using:
 
 *Try the following*
 ```{r}
-ed = read.csv("data/ED_Oct6.csv", stringsAsFactors = FALSE, fileEncoding="latin1")
+ed = read.csv("data/ED.csv", stringsAsFactors = FALSE)
 ```
 
 Because the dataset is so large, we don't want R to try and print out the results after each command. To prevent this, we'll wrap the data frame in `tbl_df` which overrides the `print` function to avoid printing out too many rows and columns.
@@ -207,8 +207,8 @@ to create two new columns from expressions. You can replace existing columns by 
 *Try the following*
 ```{r}
 transmute(ed, dmy_hm(PRESENT), dmy_hm(DEPART))
-transmute(ed, LOS = dmy_hm(DEPART) - dmy_hm(PRESENT))
-transmute(ed, LOS = as.numeric(dmy_hm(DEPART) - dmy_hm(PRESENT))/60)
+transmute(ed, LoS = dmy_hm(DEPART) - dmy_hm(PRESENT))
+transmute(ed, LoS = as.numeric(dmy_hm(DEPART) - dmy_hm(PRESENT))/60)
 transmute(ed, age_group = cut(Age, breaks=c(0,20,40,60,80,110)))
 ```
 
@@ -268,12 +268,12 @@ Often we need to chain together a long sequence of verbs to get the things we re
 This could be done using a bunch of temporary data frames
 
 ```{r}
-ed2 = mutate(ed, DEPART=dmy_hm(DEPART))
-ed3 = mutate(ed2, PRESENT=dmy_hm(PRESENT))
-ed4 = mutate(ed3, LOS=as.numeric(DEPART - PRESENT)/60)
-ed5 = mutate(ed4, AgeGroup = cut(Age, c(0, 20, 40, 60, 80, 110)))
-ed6 = group_by(ed5, ETHGROUP, AgeGroup)
-summarise(ed6, mean(LOS))
+edtemp = mutate(ed, DEPART=dmy_hm(DEPART))
+edtemp2 = mutate(edtemp, PRESENT=dmy_hm(PRESENT))
+edtemp3 = mutate(edtemp2, LoS=as.numeric(DEPART - PRESENT)/60)
+edtemp4 = mutate(edtemp3, AgeGroup = cut(Age, c(0, 20, 40, 60, 80, 110)))
+edtemp5 = group_by(edtemp4, ETHGROUP, AgeGroup)
+summarise(edtemp5, mean(LoS))
 ```
 
 Or alternatively we could chain the functions together to avoid the temporaries if you don't need them.
@@ -286,10 +286,10 @@ summarise(
         mutate(
           mutate(ed, DEPART=dmy_hm(DEPART))
           , PRESENT=dmy_hm(PRESENT))
-        , LOS=as.numeric(DEPART - PRESENT)/60)
+        , LoS=as.numeric(DEPART - PRESENT)/60)
       , AgeGroup = cut(Age, c(0, 20, 40, 60, 80, 110)))
     , ETHGROUP, AgeGroup)
-  , mean(LOS))
+  , mean(LoS))
 ```
 
 The problem with that is you need to read it inside out. Plus, it's not obvious which parameters are associated with which functions.
@@ -301,10 +301,10 @@ what is on the left hand side and passes it into the first parameter of the righ
 ed %>%
   mutate(DEPART=dmy_hm(DEPART)) %>%
   mutate(PRESENT=dmy_hm(PRESENT)) %>%
-  mutate(LOS=as.numeric(DEPART-PRESENT)/60) %>%
+  mutate(LoS=as.numeric(DEPART-PRESENT)/60) %>%
   mutate(AgeGroup=cut(Age, c(0,20,40,60,80,110))) %>%
   group_by(ETHGROUP, AgeGroup) %>%
-  summarise(mean(LOS))
+  summarise(mean(LoS))
 ```
 
 This is much easier to read. You can see the flow of the data through the chain of functions.
@@ -341,3 +341,60 @@ gather(sp, Weekday, count, Sun:Sat)
 
 1. Construct a table of number of patients by ethnicity and age group.
 2. Construct a table of median length of stay of patients by ethnicity and age group.
+
+## Joins
+
+Often we want to take one table and combine it with another to get additional information on observations.
+
+This is particularly useful when there are grouping variables within the main data, where the grouping variable has
+a number of other variables associated with it.
+
+e.g. You might have other patient information available, or perhaps information on doctors.
+
+In our case, we have `ComplaintCode` which is a cleaned up and coded version of the `Presenting.complaint` column.
+
+*Take a look at it*
+```{r}
+select(ed, Presenting.complaint, ComplaintCode)
+```
+
+We then have a separate data table that tells us what these complaint codes are. This is known as 'normalised data', in that if
+we want to change the labels of the complaint codes, we need only change the separated data table, and don't have to go through
+and modify the ED database.
+
+*Read the separate data table in*
+```{r}
+complaints = read.csv("data/ED_complaints.csv", stringsAsFactors = FALSE)
+complaints
+```
+
+Our goal now is to link the main data frame to the complaints data frame, i.e. to lookup the complaint name using the complaint code.
+
+You can do this using joins. Those of you familiar with databases will know about these already. The same types of joins you have on databases can also be done in dplyr.  The syntax of the joins are
+
+```{r}
+inner_join(x, y, by = NULL, copy = FALSE)
+```
+
+where you can replace `inner` by `left`, `right`, `full`, `semi` or `anti` to perform different join types.
+
+- `inner_join` returns all rows from x that have a match in y, and all columns of x and y. If there are multiple matches, all matches are returned.
+- `left_join` returns all rows from x, and all columns from x and y. Rows in x with no match in y will have NA values for the y columns. If there are multiple matches, all matches are returned.
+- `right_join` returns all rows from y, and all columns from x and y. Rows in y with no match in x will have NA values for the x columns. Equivalent to `left_join(y, x) `
+- `full_join` is a combination of left and right joins. All rows and columns from both x and y are returned, with any missing rows having NA values in the appropriate columns.
+- `semi_join` returns rows from x that have a match in y, but only retains the columns of x. Note that this means that you never get rows duplicated like you do in an `inner_join` if there are repeats (as y columns aren't returned).
+- `anti_join` returns rows from x with no matching rows in y, retaining only the columns of x.
+
+By default, the join will use any common columns to use to match rows. You can override this with the `by` parameter.
+
+*Try the following*
+```{r}
+inner_join(ed, complaints)
+inner_join(ed, complaints, by=c("ComplaintCode" = "Code"))
+```
+
+*Your turn*
+
+1. Create a table summarising the average emergency department stay by complaint and ethnicity.
+2. Recall that in the EDA session we dealt only with the counts per hour. See if you can reconstruct that data set.
+2. Play with the data and see what you can find.
