@@ -13,7 +13,6 @@ Today we'll be covering some of Hadley Wickham's packages.
 - dplyr
 - tidyr
 - lubridate
-- stringr
 
 In addition, we'll be looking at the forward pipe operator which is from the `magrittr` package and makes
 sequences of operations a little more intuitive.
@@ -59,27 +58,25 @@ A key point to note is that to convert date strings to dates, you must first hav
 
 In addition, lubridate can also work with time strings (or date-time strings) using the `hm` and `hms` functions (and `ymd_h`, `ymd_hm`, `ymd_hms` etc.)
 
-Some examples to try
-
+*Try the following*
 ```{r}
 library(lubridate)
 ymd("2015-01-30")
+ymd("2015/1/30")
 ymd_hms("2015-01-30 23:11:02")
 ymd_hm("2015-01-30 3:11 pm")
-ymd("2015/1/30")
-ymd("15/1/30")
-ymd("15/1/1")
-dmy("1/1/10")
-dmy("15 1 2010")
+ymd("15/1/14")
+dmy("15/1/14")
 dmy(c("4/5/1998", "15 1 2010"))
-dmy(c("4/5/1998", "2015-01-03"))
 dmy(c("4/5/1998", "2015-01-03"))
 ```
 
 Once you have a date object, you can then use lubridate functions to extract various aspects, compare dates, round dates and so on.
 
+*Try the following*
 ```{r}
-date_time = ymd_hms(c(now(), "2015-05-01 3:48:41", "2015-05-01 4:48:41", "2015-05-01 23:48:41"))
+date_time = now()
+date_time
 day(date_time)
 week(date_time)
 wday(date_time)
@@ -89,9 +86,16 @@ year(date_time)
 hour(date_time)
 quarter(date_time)
 round_date(date_time, "hour")
-date_time > "2015-05-01"
-interval = ymd(20150501) %--% ymd(20150502)
+date_time > "2015-10-01"
+interval = ymd(20151001) %--% ymd(20151012)
 date_time %within% interval
+```
+
+We can use this to convert the `ADATE` column.
+
+*Do the following*
+```{r}
+ed$ADATE = dmy(ed$ADATE)
 ```
 
 ## dplyr
@@ -107,9 +111,11 @@ dplyr is designed to work on either local data frames (i.e. data residing in R's
 
 dplyr makes extensive use of **non-standard evaluation**. Thus, you can reference columns in your dataset by using their name, without quotes. This is particularly good for interactive use, as RStudio includes auto-completion for column names when it is used with piping (see below).
 
-Lastly, dplyr is designed to use lazy evaluation. Thus, it only actually does work manipulation data frames or databases when you need to use the data (e.g. to print it out) or save it to a temporary variable. This is particularly useful when piping is used, which we'll get to later, as that eliminates the need for temporary variables in many situations.
+Lastly, dplyr is designed to use lazy evaluation. Thus, it only actually does work on data frames or databases when you need to use the data (e.g. to print it out). If you're working with a database, even if you assign a result to a temporary variable, dplyr won't actually go to the database. It will only go to the database when you need to print, or otherwise process the data using something other than dplyr.
 
-*Usually this isn't a big deal though. Unless your data is big (millions of rows) having a local data frame is normally OK*.
+If your data is fairly small, then often doing a database dump at the start might make more sense (e.g. via RMySQL or similar DBI libraries), as subsequent operations will be much faster on an in-memory data frame. If the database is large, or you need 'live' summaries of the database as you go then connecting to the database using `dplyr` and retrieving only the summaries you want might be a better way to go.
+
+For monthly reporting I'd use the first, whereas for hourly reporting, the second method.
 
 ### The verbs
 
@@ -134,13 +140,16 @@ where `data` is a data frame, `expression1` is an expression on the columns of `
 *Try the following*
 ```{r}
 filter(ed, Triage == 4)
+filter(ed, Triage %in% c(3,4))
 filter(ed, Triage >= 4, Age >= 50)
-filter(ed, Length.of.ED.stay..minutes. > 6*60)
+filter(ed, year(ADATE) == 2012)
 ```
 
 *Your turn*
 
-1. Filter the dataset to include only those triaged
+1. Filter the dataset to include only those under the age of 5 that presented in 2014 and stayed in hospital for at least 3 days.
+2. Find observations of female Pacific Island patients over the age of 65.
+3. Find observations of female Pacific or Maori patients over the age of 65.
 
 #### arrange
 
@@ -154,6 +163,17 @@ where again `data` is a data frame, `column1` etc. are (unquoted) column names. 
 
 If you wish to order on an expression computed from one or more columns, the trick is to use `mutate` to create a new column with the result of the expression, then `arrange` by the new column.
 
+*Try the following*
+```{r}
+arrange(ed, Triage)
+arrange(ed, desc(ADATE))
+```
+
+*Your turn*
+
+1. Sort the data by age.
+2. Sort the data by decreasing length of hospital stay.
+
 #### select, rename
 
 Select is used to choose a subset of columns. e.g. it is often used to drop columns that are no longer of interest. You can rename a column as you go (by naming the columns you select differently), or alternatively can use `rename` to do this. You can also re-order columns using `select`. The syntax is
@@ -165,6 +185,12 @@ select(data, col1, col2, ...)
 to return the `col1` and `col2` columns from the data frame `data`. You can reference columns as if they were ranges as well (e.g. `col1:col2` returns all columns from `col1` to `col2`), and can drop columns by using `-col`. You can rename columns using `foo = col2` to rename `col2` to `foo`.
 
 The syntax for `rename` is the same, with the difference being that `rename` by default keeps all unreferenced columns (in addition to the renamed ones), where as `select` only returns the referenced columns.
+
+*Try the following*
+```{r}
+select(ed, Triage, ADATE, Age, Gender, ETHGROUP, LoH=Length.of.hospital.stay)
+rename(ed, LoH=Length.of.hospital.stay)
+```
 
 #### mutate, transmute
 
@@ -178,6 +204,18 @@ to create two new columns from expressions. You can replace existing columns by 
 
 `transmute` uses the same syntax, but returns only the columns specified rather than all other columns as well.
 
+*Try the following*
+```{r}
+transmute(ed, dmy_hm(PRESENT), dmy_hm(DEPART))
+transmute(ed, LOS = dmy_hm(DEPART) - dmy_hm(PRESENT))
+transmute(ed, LOS = as.numeric(dmy_hm(DEPART) - dmy_hm(PRESENT))/60)
+transmute(ed, age_group = cut(Age, breaks=c(0,20,40,60,80,110)))
+```
+
+*Your turn*
+1. Use `mutate` to create a new dataframe `ed2` with `DEPART` and `PRESENT` columns converted to dates.
+2. Find the presenting and departing dates for any patients that were in over new years eve in 2012 using `filter` and `select` on `ed2`.
+
 #### summarise
 
 The `summarise` function summarises all the rows in a data frame. It is useful for counting rows, computing summary statistics (median, mean, max, min) and so on. The syntax is
@@ -188,11 +226,94 @@ summarise(data, name=expression, name2=expression2)
 
 where `expression` computes a summary from one (or more) columns in the data. The result is a data frame with a single row containing the `name` and `name2` values.
 
+*Try the following*
+```{r}
+summarise(ed2, min(PRESENT), max(PRESENT))
+```
+
+*Your turn*
+
+1. Find the age of the oldest and youngest patients, and the average age.
+2. Find the earliest date of arrival for patients in ED at new years eve 2012.
+
 ### Grouped operations
 
 The real power of dplyr comes when the above verbs are applied to groups of data. In particular, the `summarise` function allows you to compute data summaries by group, but all of the other verbs have analogues for grouped data (e.g. `arrange` on grouped data arranges within group, while `filter` filters within group, which is particularly useful for retrieving things like the top 5 results in each group).
 
 The `group_by` verb is the key function. It adds grouping information to the data frame so that subsequent commands are operated on the groups rather than on the entire data set.
+
+*Try the following*
+```{r}
+eth = group_by(ed, ETHGROUP)
+summarise(eth, n())
+```
+
+*Your turn*
+
+1. Find the number of observations for each `Age`.
+2. Find the median age for each ethnicity.
+3. Find the average time in ED for each ethnicity.
+4. Find the average time in ED for each ethnicity by age group.
+
+## Pipes
+
+Often we need to chain together a long sequence of verbs to get the things we really want. For example, in order to find the average time in ED for each ethnicity by age group we'd need to:
+
+1. Mutate to convert dates to dates.
+2. Mutate to get time in ED from the difference in dates.
+3. Mutate to get the age groups.
+4. Group by ethnicity and age group.
+5. Summarise to get the means.
+
+This could be done using a bunch of temporary data frames
+
+```{r}
+ed2 = mutate(ed, DEPART=dmy_hm(DEPART))
+ed3 = mutate(ed2, PRESENT=dmy_hm(PRESENT))
+ed4 = mutate(ed3, LOS=as.numeric(DEPART - PRESENT)/60)
+ed5 = mutate(ed4, AgeGroup = cut(Age, c(0, 20, 40, 60, 80, 110)))
+ed6 = group_by(ed5, ETHGROUP, AgeGroup)
+summarise(ed6, mean(LOS))
+```
+
+Or alternatively we could chain the functions together to avoid the temporaries if you don't need them.
+
+```{r}
+summarise(
+  group_by(
+    mutate(
+      mutate(
+        mutate(
+          mutate(ed, DEPART=dmy_hm(DEPART))
+          , PRESENT=dmy_hm(PRESENT))
+        , LOS=as.numeric(DEPART - PRESENT)/60)
+      , AgeGroup = cut(Age, c(0, 20, 40, 60, 80, 110)))
+    , ETHGROUP, AgeGroup)
+  , mean(LOS))
+```
+
+The problem with that is you need to read it inside out. Plus, it's not obvious which parameters are associated with which functions.
+
+Instead, we can use the pipe operator `%>%` to string together functions. What the pipe operator does is it takes
+what is on the left hand side and passes it into the first parameter of the right hand side function. The above becomes
+
+```{r}
+ed %>%
+  mutate(DEPART=dmy_hm(DEPART)) %>%
+  mutate(PRESENT=dmy_hm(PRESENT)) %>%
+  mutate(LOS=as.numeric(DEPART-PRESENT)/60) %>%
+  mutate(AgeGroup=cut(Age, c(0,20,40,60,80,110))) %>%
+  group_by(ETHGROUP, AgeGroup) %>%
+  summarise(mean(LOS))
+```
+
+This is much easier to read. You can see the flow of the data through the chain of functions.
+
+*Your turn*
+
+1. Find the average length of stay by month.
+2. Find the average length of stay by day.
+3. Find the number of arrivals per hour per day of the week.
 
 ## tidyr
 
@@ -203,14 +324,20 @@ The tidyr package is designed to aid in getting data frames into the 'variables 
 
 We'll illustrate this use through summarising the ED data using dplyr and converting that to `wide` tabular form using `spread` for presentation.
 
-## Pipes
+*Try the following*
+```{r}
+counts = ed %>%
+            mutate(PRESENT = dmy_hm(PRESENT),
+                   Hour = hour(PRESENT),
+                   Weekday = wday(PRESENT, label=TRUE)) %>%
+            group_by(Hour, Weekday) %>%
+            summarise(count=n())
+sp = spread(counts, key=Weekday, value=count)
+print(sp, n=24)
+gather(sp, Weekday, count, Sun:Sat)
+```
 
-Often when we do 
-### Strings with stringr
+*Your turn*
 
-Often when you have a data set that you want to do a set of analysis on, you find yourself having to clean
-up columns of strings. e.g. you might need to tidy up a column that has different spacing, or where some entries have a rogue space after the entry. In such cases you need to be able to process character strings
-to extract the bits you want and leave the bits you don't.
-
-All of this can be done with base R, but stringr just makes things a bit more consistent.
-
+1. Construct a table of number of patients by ethnicity and age group.
+2. Construct a table of median length of stay of patients by ethnicity and age group.
