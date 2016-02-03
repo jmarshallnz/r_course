@@ -1,0 +1,549 @@
+---
+title: Data Mining
+author: Jonathan Marshall
+date: 4 Feb 2016
+output: 
+  ioslides_presentation: 
+    highlight: tango
+---
+
+```{r, setup, echo=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo=FALSE, fig.width=8, dev.args=list(bg='transparent'), comment="")
+```
+
+# Data Mining
+
+## What is Data Mining?{.flexbox .vcenter}
+
+**What do you think it is?**
+
+## What is Data Mining?
+
+- Data Mining is the intersection of statistics, machine learning, and computer science.
+
+- It often involves large data sets (but doesn't have to).
+
+- Less interested in *what is the model* than we are in *how does it perform*.
+
+- Often don't have a specific hypothesis to test.
+
+## Traditional statistics
+
+- Start with a hypothesis.
+
+- Design an experiment or survey and collect data.
+
+- Usually $n$ is small, and $p$ smaller.
+
+- Model how the data arise parameterically (e.g. regression assumptions).
+
+- Summarise evidence for hypothesis.
+
+## Example: Goats
+
+- Worm infestation in goats can be countered by drenching.
+
+- Designed experiment (in Lincoln) to investigate the effect of drenching regimes on goats.
+
+- 40 goats divided at random into two groups of 20.
+
+- Goats in first group got standard drenching; those in second got intensive drenching.
+
+- Goat weight (kg) measured at start and end of experiment.
+
+## Example: Goats
+
+```{r, cached=TRUE, fig.height=3.5}
+goats <- read.table(file="http://www.massey.ac.nz/~jcmarsha/161223/data/goats.txt",header=TRUE)
+par(mar=c(4,5,0,2))
+plot(Wt.gain ~ Wt.ini, col=Treatment, pch=as.numeric(Treatment), data=goats, xlab="Weight gain", ylab="Initial weight", main="")
+legend('topright', legend=levels(goats$Treatment), pch=1:2, col=1:2)
+```
+
+- Does the drenching program affects a goat's weight gain?
+
+- Does weight gain depends on the goat's weight?
+
+## Example: Amazon reviews
+
+- Data on reviews published on Amazon.
+
+- Information on 30 reviews by each of 50 reviewers, so $n=1500$.
+
+- For each review, $p = 10000$ variables are recorded.
+    - Word frequencies;
+    - Usage of digits and punctuation;
+    - Word and sentence length
+
+## Example: Amazon reviews
+
+```{r, cached=TRUE, fig.height=5}
+amazon <- read.csv(file="http://www.massey.ac.nz/~jcmarsha/161223/data/amazon.txt",header=F)
+Number.of.spaces <- amazon[,6567]
+Number.of.commas <- amazon[,6601]
+par(mar=c(5,4,0,2)+0.1)
+zones <- matrix(c(2,0,1,3), ncol=2, byrow=T)  
+layout(zones, widths=c(3,1), heights=c(1,3))  
+plot(Number.of.commas ~ Number.of.spaces, data=amazon)
+xhist <- hist(Number.of.spaces,breaks=20,plot=F)  
+yhist <- hist(Number.of.commas,breaks=20,plot=F)   
+par(mar=c(0,4,0,2))
+barplot(xhist$counts, axes=F, space=0)  
+par(mar=c(5,0,0,2))
+barplot(yhist$counts, axes=F, space=0, horiz=T) 
+```
+
+## Example: Amazon reviews
+
+- Large dataset (15 million observations)
+
+- Massively multivariate ($p=10000 > n=1500$)
+
+- Data collected as part of study of stylometry, but no specific hypotheses.
+
+- Analysis could include:
+    - Classification (who wrote what?)
+    - Associations in written langauge (do comma users also like semi-colons?)
+    - Applications in linguistics, artificial intelligence, source attribution.
+
+## Data mining versus traditional statistics
+
+```{r, fig.height=3, fig.width=5, fig.align='center'}
+plot(c(1,9),c(-1,1),type="n",axes=F,xlab="",ylab="")
+symbols(5,0,rectangles=matrix(c(4,1),1,2),inches=F,add=T)
+arrows(2.5,0,1.5,0,length=0.1)
+arrows(8.5,0,7.5,0,length=0.1)
+text(5,0,'nature',cex=1.5)
+text(9,0,expression(x),cex=1.5)
+text(1,0,expression(y),cex=1.5)
+```
+
+In real life, we don't really know what 'nature' does to $x$ to give $y$.
+
+## Data mining versus traditional statistics
+
+```{r, fig.height=3, fig.width=5, fig.align='center'}
+plot(c(1,9),c(-1,1),type="n",axes=F,xlab="",ylab="")
+symbols(5,0,rectangles=matrix(c(4,1),1,2),inches=F,add=T)
+arrows(2.5,0,1.5,0,length=0.1)
+arrows(8.5,0,7.5,0,length=0.1)
+text(5,0,'model',cex=1.5)
+text(9,0,expression(x),cex=1.5)
+text(1,0,expression(y),cex=1.5)
+```
+
+Traditional statistics assumes that $y$ arises from some known stochastic model.
+
+## Data mining versus traditional statistics
+
+```{r, fig.height=3, fig.width=5, fig.align='center'}
+par(xpd=TRUE)
+plot(c(1,9),c(-1,1),type="n",axes=F,xlab="",ylab="")
+symbols(5,0,rectangles=matrix(c(4,1),1,2),inches=F,add=T)
+arrows(2.5,0,1.5,0,length=0.1)
+arrows(8.5,0,7.5,0,length=0.1)
+text(5,0,'nature',cex=1.5)
+text(9,0,expression(x),cex=1.5)
+text(1,0,expression(y),cex=1.5)
+text(5,-1,'blackbox',cex=1.5)
+arrows(3.5,-1,1.5,-0.2,length=0.1)
+arrows(8.5,-0.2,6.5,-1,length=0.1)
+```
+
+Data mining assumes it is unknown and replaces it with anything that seems to work.
+
+## Data mining black boxes
+
+There are lots of black boxes available.
+
+- Regression (we know a lot about that box).
+- Decision trees (Classification and Regression trees, CART).
+- Neural networks.
+- Discriminant Analysis.
+- Clustering or Segmentation.
+- Text mining (association rules).
+
+## Variance Bias trade-off
+
+- On of the key ideas in statistics.
+
+- We want a model with low variance. i.e. we'd get similar results if we re-fit the model on a new sample.
+
+- We want a model that is unbiased. i.e. it's not wrong.
+
+- Adding complexity often decreases bias, but increases variance.
+    - The better the model fits the current data, the worse it generalises to new data.
+
+## Which black box to use?
+
+- Determine which black box to use based on predictive performance.
+
+- How well does each black box do at predicting $y$ given $x$ on new data?
+
+- The best black box wins.
+
+- This might be a combination of black boxes (e.g. model averages).
+
+## Assessing performance
+
+- The best way to assess performance is by using an independent **validation** set.
+    - fit your model on a data set (the **training**  set).
+    - test the model fit on a separate, independent, data set.
+
+- The validation data set can just be a (random!) subset of your full data set that is removed before model fitting.
+
+- It is important to not validate on the same data you use to fit the model!
+
+- Cross-validation repeatedly splits your dataset into training and validation sets and averages the results.
+
+## Types of black-boxes
+
+- Supervised learning: We have a known outcome variable.
+    - Regression
+    - Tree based methods
+    - Neural networks
+    - Support Vector Machines
+    - Discriminant analysis
+
+- Unsupervised learning: We have no known outcome variables.
+    - Clustering (e.g. k-means)
+    - Segmentation (cluster then split)
+    - Principle components analysis + plots
+    - Multi-dimensional scaling
+
+# Tree based methods
+
+## Tree based methods
+
+- Idea is to split the data into groups using the predictors, and estimate the outcome variable within each group using a constant.
+- We usually form the groups using a sequence of binary splits.
+- The process can then be described by a binary tree, where the predictor data enters the top and gets
+split into groups at the leaves of the tree.
+
+## Example
+
+```{r}
+# create data
+set.seed(2012)
+x <- sort(runif(400,0,10))
+y <- 1 + sin(1.5*x/(1+x^2/100)) + rnorm(400,sd=0.25)
+par(mar=c(4,4,0,2))
+plot(x,y,pch=19, col="#0000007F")
+```
+
+## Example: Regression tree fit
+
+```{r}
+library(rpart)
+toy.rp <- rpart(y ~ x, cp=0.1)
+par(mar=c(4,4,0,2))
+plot(x,y,type="n")
+#TODO: Grab these from the .rp
+polygon(c(-1,-1,2.163,2.163),c(-0.7,2.9,2.9,-0.7),col=grey(0.95),border=NA)
+polygon(c(2.163,2.163,6.213,6.213),c(-0.7,2.9,2.9,-0.7),col=grey(0.85),border=NA)
+polygon(c(6.213,6.213,11,11),c(-0.7,2.9,2.9,-0.7),col=grey(0.95),border=NA)
+points(x,y,col="#0000007F",pch=19)
+segments(6.213,1.794,11,1.794,lwd=2, col="red")
+segments(2.163,0.5704,6.213,0.5704,lwd=2, col="red")
+segments(-1,1.645,2.163,1.645,lwd=2, col="red")
+box()
+```
+
+## Example: The tree
+
+```{r}
+plot(toy.rp,compress=TRUE,margin=0.1)
+text(toy.rp)
+```
+
+## Example: Another tree
+
+```{r}
+toy.rp.2 <- rpart(y ~ x, cp=0.01)
+plot(toy.rp.2,compress=TRUE,margin=0.1)
+text(toy.rp.2)
+```
+
+## Example: Prediction for second tree
+
+```{r}
+par(mar=c(4,4,0,2))
+plot(x,y,col="#0000007F",pch=19)
+x0 = c(min(x), sort(toy.rp.2$splits[,4]), max(x))
+lines(x0,predict(toy.rp.2, data.frame(x=x0)), lwd=2, col="red", type='s')
+```
+
+## Example: A way too complex tree
+
+```{r}
+toy.rp.3 <- rpart(y ~ x, cp=0.000001,minsplit=3)
+plot(toy.rp.3,compress=TRUE,margin=0.1)
+```
+
+## Example: Prediction from overly complex tree
+
+```{r}
+par(mar=c(4,4,0,2))
+plot(x,y,col="#0000007F",pch=19)
+x0 = c(min(x), sort(toy.rp.3$splits[,4]), max(x))
+lines(x0,predict(toy.rp.3, data.frame(x=x0)), lwd=2, col="red", type='s')
+```
+
+## How to grow a tree
+
+- At each stage, we want to select the best way to split the current data in half.
+    - Which node of the tree should we split?
+    - Which variable (if more than one) should we use?
+    - What value of the variable should we split at?
+
+- The best split is usually the one regarded as the smallest possible residual sum of squared error.
+
+- It turns out this is easy to compute as you just need the variance at each leaf of the tree.
+
+## Implementation in R
+
+- The `rpart` function in the `rpart` package handles regression (and classification) trees.
+
+- It takes the usual model formula syntax (same as `lm`). i.e.
+
+    ```{r, eval=FALSE, echo=TRUE}
+    rpart(y ~ x1 + x2, data=mydata)
+    ```
+
+- It automatically recognises whether the outcome is categorical (a factor) or numeric and produces
+a classification or regression tree.
+
+- You can `plot` the resulting tree and use `predict` for predictions in the usual way.
+
+## Try it yourself!
+
+```{r, eval=FALSE, echo=TRUE}
+wage = read.csv("wage-train.csv")
+library(rpart)
+wage.rp = rpart(WAGE ~ ., data=wage)
+plot(wage.rp)
+text(wage.rp)
+```
+
+- Take a look at the prediction on the `wage-test.csv` set.
+    - How well does your prediction do?
+    - Try plotting your prediction against the true values in the test set.
+    - You could work out the mean squared error by using the sum of the difference squared.
+
+- Try playing with the `cp` parameter - e.g. try making it 0.001. Does it improve your prediction?
+
+# Neural networks
+
+## Neural networks
+
+- Artificial neural networks.
+
+- (Very) crude representation of the brain, a network of neurons that fire only if the level of input
+is significantly high enough.
+
+- Input parameters feed through input neurons, through one or more layers of other neurons (derived features) until you get to one or more output neurons.
+
+## Neural networks
+
+```{r}
+par(mar=c(0,0,0,0))
+plot(c(1,9),c(0,11),type="n",axes=F,xlab="",ylab="")
+symbols(c(2,2,2,2,5,5,5,8),c(1,3.67,6.33,9,2,5,8,5),circle=rep(0.5,8),inches=F,add=T)
+arrows(2.5,1,4.5,2,length=0.1)
+arrows(2.5,1,4.5,5,length=0.1)
+arrows(2.5,1,4.5,8,length=0.1)
+arrows(2.5,3.67,4.5,2,length=0.1)
+arrows(2.5,3.67,4.5,5,length=0.1)
+arrows(2.5,3.67,4.5,8,length=0.1)
+arrows(2.5,6.33,4.5,2,length=0.1)
+arrows(2.5,6.33,4.5,5,length=0.1)
+arrows(2.5,6.33,4.5,8,length=0.1)
+arrows(2.5,9,4.5,2,length=0.1)
+arrows(2.5,9,4.5,5,length=0.1)
+arrows(2.5,9,4.5,8,length=0.1)
+arrows(5.5,2,7.5,5,length=0.1)
+arrows(5.5,5,7.5,5,length=0.1)
+arrows(5.5,8,7.5,5,length=0.1)
+text(2,9,expression(x[1]),cex=1.5)
+text(2,6.33,expression(x[2]),cex=1.5)
+text(2,3.67,expression(x[3]),cex=1.5)
+text(2,1,expression(x[4]),cex=1.5)
+text(5,8,expression(z[1]),cex=1.5)
+text(5,5,expression(z[2]),cex=1.5)
+text(5,2,expression(z[3]),cex=1.5)
+text(8,5,expression(hat(y)),cex=1.5)
+text(2,10.8,"Inputs",cex=1.5)
+text(5,10.8,"Derived features",cex=1.5)
+text(8,10.8,"Output",cex=1.5)
+```
+
+## Neural networks
+
+http://places.csail.mit.edu/demo.html
+
+## How they operate
+
+- A neuron at a given layer turns on and off based on a transformation of a linear combination of the values given by the previous layer.
+
+- The transformation (activation function) is usually the sigmoid function $\phi(v) = \frac{1}{1+e^{-v}}$.
+
+- This means the neuron takes a value between 0 and 1, with large inputs ($v > 4$) being almost one, and small inputs ($v < -4$) being almost zero.
+
+- A linear combination of the last layer gives the outcome predictor.
+
+- The neural network is parameterised by all the coefficients of all the linear predictors (lots + lots of them).
+
+## Neural networks in R
+
+- The `nnet` function is used which is part of the `nnet` package.
+
+- Fortunately, again, the syntax is similar to `lm` in that you pass it a formula.
+
+- For numeric predictors, you need to add `linout=TRUE`.
+
+- You need to specify the number of nodes in the derived feature layer. A good choice is the number of effective parameters divided by 2 (rounded up).
+
+- There are various other knobs to twiddle, such as `decay` and `maxit`.
+
+- The fitting algorithm depends on the random seed, so use `seed.set()` for repeatable results.
+
+## Try it yourself!
+
+- Try fitting a neural network to the `wage-train.csv` data.
+
+- Use `predict` to get a prediction on the `wage-test.csv` data.
+
+- Compute the mean square error. Better or worse than your classification trees?
+
+- Maybe play around with the `decay` parameter, or re-run a few times with different seeds and see what you get.
+
+# Discriminant Analysis
+
+## Linear Discriminant Analysis
+
+- Discriminant analysis is based on Bayes Theorem.
+
+- The goal is to estimate the probability that a particular observation with predictors $x$ is in class $j$
+
+$$
+P(j | x)
+$$
+
+- We do this by first estimating the joint probability distribution of predictors $x$ on each class:
+
+$$
+P(x | j)
+$$
+
+- Bayes Theorem links these together.
+
+## LDA assumptions
+
+- We assume that the joint probability distribution of $x$ on each class is multivariate normal.
+
+- Plus we assume that the covariance matrix of that distribution is constant across the classes.
+
+- Thus, all predictors must be numeric, and classes are distinguished based on the location of the class means.
+
+## LDA example
+
+```{r}
+todo <- "swiss example 1"
+```
+
+```{r}
+todo <- "swiss example 2"
+```
+
+```{r}
+todo <- "swiss example 3 with line on it"
+```
+
+## LDA in R
+
+- Implemented with the `lda` function within the `MASS` package (included in base R, but needs to be loaded).
+
+- Again, usual formula notation for specifying the model, and use `predict` to do prediction.
+
+## Try it yourself
+
+```{r}
+todo <- "Hopefully intersting LDA example..."
+```
+
+- Produce predictions of each class for the `.csv` test set using the `predict` command.
+
+- You can evaluate performance by producing a *confusion matrix* using `table` on the predicted values and known values on the test set.
+
+## Try it yourself 2
+
+- Try using a classification tree (via `rpart`) instead.
+
+- Or maybe a neural net?
+
+- How well do they do?
+
+# Clustering
+
+## Clustering
+
+- Clustering is an example of **unsupervised** learning.
+
+- It's like classification, except we don't know which observations are in which classes.
+
+- We don't even know how many classes there are.
+
+- We use the distance between observations in the dataset to discover which observations are relatively closer to each other compared with the rest.
+
+## Hierarchical clustering
+
+- Start with each observation in a cluster by itself.
+
+- Work out the pair-wise distance between each cluster.
+
+- Merge the two clusters that are the closest, recording the distance.
+
+- Repeat until you have only 1 cluster.
+
+- Somewhere in the middle is the 'ideal' clustering.
+
+## Hierarchical clustering in R
+
+- Start by computing pair-wise distances between observations
+    - `dist` in base.
+    - `daisy` in `cluster` package.
+
+- Pass the distance matrix to `hclust` in base.
+
+- Plot the clustering dendogram with `plot`.
+
+- Decide on where to cut the tree, use `cut` to trim it.
+
+## Try it yourself
+
+```{r}
+TODO <- "A heirarchical clustering example"
+```
+
+## K-means clustering
+
+- Assume we know the number of clusters $K$.
+
+- Assign observations to $K$ clusters in an optimal manner by assuming
+that the Euclidean metric makes sense for the distance between observations. 
+
+- Figure out what $K$ should be by repeating with different $K$'s.
+
+## K-means clustering in R
+
+- Just use `kmeans` in base with different $k$'s.
+
+- Use some sort of measure of how well things cluster (e.g. using `silhouette`)
+to figure out the best $k$.
+
+## Try it yourself
+
+```{r}
+TODO <- "A k-means example"
+```
