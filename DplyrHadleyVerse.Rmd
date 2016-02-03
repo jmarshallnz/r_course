@@ -117,9 +117,36 @@ If your data is fairly small, then often doing a database dump at the start migh
 
 For monthly reporting I'd use the first, whereas for hourly reporting, the second method.
 
+### Resources
+
+There are lots of good resources for `dplyr` on the web, including vignettes for the package, as well as presentations and tutorials. Just a few are listed below.
+
+#### Vignettes
+
+```{r}
+vignette(package="dplyr")
+```
+
+lists the 'introduction', 'data_frame', 'databases' and 'two-table' vignettes. e.g. see
+
+```{r}
+library(dplyr)
+vignette("introduction")
+```
+
+#### Web links
+
+A google search for 'dplyr tutorial' returns a whole heap of useful links, such as
+
+- https://rpubs.com/justmarkham/dplyr-tutorial
+- http://genomicsclass.github.io/book/pages/dplyr_tutorial.html
+- http://datascience.la/hadley-wickhams-dplyr-tutorial-at-user-2014-part-1/
+
+But there are plenty more. The first and last include video tutorials.
+
 ### The verbs
 
-The main verbs are
+The main verbs for manipulating data on a single table are
 
 - `filter` for filtering rows.
 - `arrange` for ordering rows.
