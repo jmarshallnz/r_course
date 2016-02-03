@@ -12,11 +12,7 @@ library(knitr)
 knitr::opts_chunk$set(echo=FALSE, fig.width=8, dev.args=list(bg='transparent'), comment="")
 ```
 
-# Data Mining
-
-## What is Data Mining?{.flexbox .vcenter}
-
-**What do you think it is?**
+# What is Data Mining?
 
 ## What is Data Mining?
 
@@ -456,6 +452,8 @@ plot(diagonal ~ margin, col=type, pch=19, data=swiss, xlab="Margin (mm)", ylab="
 legend('topright', legend=levels(swiss$type), pch=19, col=1:2)
 ```
 
+## LDA example: Joint PDF
+
 ```{r}
 library(MASS)
 library(mvtnorm)
@@ -467,11 +465,14 @@ swiss.cov = ((sum(swiss$type=="forged")-1)*cov(swiss[swiss$type=="forged",1:2]) 
 # generate a multivariate normal at each spot
 z1 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[1,], sigma=swiss.cov)
 z2 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[2,], sigma=swiss.cov)
+par(mar=c(4,4,0,2))
 plot(diagonal ~ margin, col=type, pch=19, data=swiss)
 contour(x, y, matrix(z1, length(x), length(y)), add=TRUE, nlevels=10, col="black")
 contour(x, y, matrix(z2, length(x), length(y)), add=TRUE, nlevels=10, col="red")
 legend('topright', legend=levels(swiss$type), pch=19, col=1:2)
 ```
+
+## LDA example: Discriminant
 
 ```{r}
 swiss.lda = lda(type ~ margin + diagonal, data=swiss)
@@ -482,6 +483,7 @@ swiss.cov = ((sum(swiss$type=="forged")-1)*cov(swiss[swiss$type=="forged",1:2]) 
 # generate a multivariate normal at each spot
 z1 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[1,], sigma=swiss.cov)
 z2 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[2,], sigma=swiss.cov)
+par(mar=c(4,4,0,2))
 plot(diagonal ~ margin, col=type, pch=19, data=swiss)
 contour(x, y, matrix(z1, length(x), length(y)), add=TRUE, nlevels=10, col="black")
 contour(x, y, matrix(z2, length(x), length(y)), add=TRUE, nlevels=10, col="red")
