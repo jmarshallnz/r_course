@@ -320,6 +320,7 @@ a classification or regression tree.
 
 ```{r, eval=FALSE, echo=TRUE}
 wage = read.csv("wage-train.csv")
+head(wage)
 library(rpart)
 wage.rp = rpart(WAGE ~ ., data=wage)
 plot(wage.rp)
@@ -449,15 +450,57 @@ $$
 ## LDA example
 
 ```{r}
-todo <- "swiss example 1"
+swiss <- read.table("http://www.massey.ac.nz/~jcmarsha/161223/data/swiss-train.txt", header=TRUE)
+par(mar=c(4,4,0,2))
+plot(diagonal ~ margin, col=type, pch=19, data=swiss, xlab="Margin (mm)", ylab="Diagonal (mm)")
+legend('topright', legend=levels(swiss$type), pch=19, col=1:2)
 ```
 
 ```{r}
-todo <- "swiss example 2"
+library(MASS)
+library(mvtnorm)
+swiss.lda = lda(type ~ margin + diagonal, data=swiss)
+# create prediction space...
+x = seq(min(swiss$margin), max(swiss$margin), length.out=20)
+y = seq(min(swiss$diagonal), max(swiss$diagonal), length.out=20)
+swiss.cov = ((sum(swiss$type=="forged")-1)*cov(swiss[swiss$type=="forged",1:2]) + (sum(swiss$type=="genuine")-1)*cov(swiss[swiss$type=="genuine",1:2])) / (nrow(swiss) - 2)
+# generate a multivariate normal at each spot
+z1 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[1,], sigma=swiss.cov)
+z2 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[2,], sigma=swiss.cov)
+plot(diagonal ~ margin, col=type, pch=19, data=swiss)
+contour(x, y, matrix(z1, length(x), length(y)), add=TRUE, nlevels=10, col="black")
+contour(x, y, matrix(z2, length(x), length(y)), add=TRUE, nlevels=10, col="red")
+legend('topright', legend=levels(swiss$type), pch=19, col=1:2)
 ```
 
 ```{r}
-todo <- "swiss example 3 with line on it"
+swiss.lda = lda(type ~ margin + diagonal, data=swiss)
+# create prediction space...
+x = seq(min(swiss$margin), max(swiss$margin), length.out=20)
+y = seq(min(swiss$diagonal), max(swiss$diagonal), length.out=20)
+swiss.cov = ((sum(swiss$type=="forged")-1)*cov(swiss[swiss$type=="forged",1:2]) + (sum(swiss$type=="genuine")-1)*cov(swiss[swiss$type=="genuine",1:2])) / (nrow(swiss) - 2)
+# generate a multivariate normal at each spot
+z1 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[1,], sigma=swiss.cov)
+z2 = dmvnorm(expand.grid(x, y), mean=swiss.lda$means[2,], sigma=swiss.cov)
+plot(diagonal ~ margin, col=type, pch=19, data=swiss)
+contour(x, y, matrix(z1, length(x), length(y)), add=TRUE, nlevels=10, col="black")
+contour(x, y, matrix(z2, length(x), length(y)), add=TRUE, nlevels=10, col="red")
+
+lda.slope <- -swiss.lda$scaling[1] / swiss.lda$scaling[2] # scaling is the normal
+
+# generate a bunch of points along the line from mean to mean (there's probably a more efficient way!)
+p <- seq(0,1,by=0.001)
+v <- p %*% t(swiss.lda$means[1,]) + (1 - p) %*% t(swiss.lda$means[2,])
+lda.pt <- v[min(which(predict(swiss.lda, data.frame(v))$class == "forged")),]
+
+lda.int   <- lda.pt[2] - lda.slope*lda.pt[1]
+
+# and generate some polygons for this
+polygon(c(6,6,13,13),c(lda.int+lda.slope*6,143,143,lda.int+lda.slope*13), col="#FF00003F")
+polygon(c(6,6,13,13),c(137,lda.int+lda.slope*6,lda.int+lda.slope*13,137), col="#0000003F")
+
+abline(lda.int, lda.slope, col="red", lwd=2)
+legend('topright', legend=levels(swiss$type), pch=19, col=1:2)
 ```
 
 ## LDA in R
@@ -468,11 +511,15 @@ todo <- "swiss example 3 with line on it"
 
 ## Try it yourself
 
-```{r}
-todo <- "Hopefully intersting LDA example..."
+```{r, eval=FALSE, echo=TRUE}
+wine = read.csv("wine-train.csv")
+head(wine)
+wine.lda = lda(Cultivar ~ ., data=wine)
+wine.lda
+plot(wine.lda)
 ```
 
-- Produce predictions of each class for the `.csv` test set using the `predict` command.
+- Produce predictions of each class for the `wine-test.csv` test set using the `predict` command. Use the `$class` member from `predict` to get the classes.
 
 - You can evaluate performance by producing a *confusion matrix* using `table` on the predicted values and known values on the test set.
 
@@ -508,6 +555,16 @@ todo <- "Hopefully intersting LDA example..."
 
 - Somewhere in the middle is the 'ideal' clustering.
 
+## Republican voting patterns
+
+```{r}
+library(cluster)
+v.dist = dist(votes.repub)
+v.hc = hclust(v.dist, method="complete")
+par(mar=c(4,4,0,2))
+plot(v.hc, xlab="", ylab="", sub="", main="", cex=0.8)
+```
+
 ## Hierarchical clustering in R
 
 - Start by computing pair-wise distances between observations
@@ -522,9 +579,16 @@ todo <- "Hopefully intersting LDA example..."
 
 ## Try it yourself
 
-```{r}
-TODO <- "A heirarchical clustering example"
+```{r, eval=FALSE, echo=TRUE}
+quakes = read.csv("quakes.csv")
+head(quakes)
+quake.dist = dist(quakes)
+quake.hc = hclust(quake.dist)
+plot(quake.hc, labels=FALSE)
 ```
+
+- Try repeating the above by first scaling the quakes data using `scale`. This is important as the variables are
+all on different scales, so longitude and latitude will be contributing most to the distance (with Richter being basically ignored.)
 
 ## K-means clustering
 
@@ -544,6 +608,17 @@ to figure out the best $k$.
 
 ## Try it yourself
 
-```{r}
-TODO <- "A k-means example"
+- Try using `kmeans` to cluster the quakes data for different numbers of clusters (e.g. $k=2$ through $k=10$).
+
+- One way to assess how well things cluster is to compute the average silhouette. Try the following
+
+```{r, echo=TRUE, eval=FALSE}
+library(cluster)
+quakes.scale = scale(quakes)
+quakes.km = kmeans(quakes.scale, 4)
+quakes.sil = silhouette(quakes.km$cluster, dist(quakes.scale))
+quakes.avg = mean(quakes.sil[,3])
+quakes.avg
 ```
+
+- Repeat the above with different numbers of clusters.
