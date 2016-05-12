@@ -9,7 +9,7 @@ output:
 
 ```{r, setup, echo=FALSE}
 library(knitr)
-knitr::opts_chunk$set(echo=FALSE, fig.width=8, dev.args=list(bg='transparent'), comment="")
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, fig.width=8, dev.args=list(bg='transparent'), comment="")
 ```
 
 # What is Data Mining?
