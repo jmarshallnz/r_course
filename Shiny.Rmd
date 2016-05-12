@@ -218,9 +218,16 @@ arguments.
 - Un-named arguments become children in the HTML. These can be tags themselves (i.e. other
 HTML functions such as `p()`) or plain-text which become text nodes in the HTML.
 
-```{r}
+## Example
+
+```{r, echo=TRUE, eval=FALSE}
 h1("test", align="center")
-p("A paragraph containing", strong("bold"), "blue text.")
+p("A paragraph containing", strong("bold"), "blue text.", style="color:blue")
+```
+
+```{r, echo=FALSE, eval=TRUE}
+print(h1("test", align="center"))
+print(p("A paragraph containing", strong("bold"), "blue text.", style="color:blue"))
 ```
 
 ## HTML functions
