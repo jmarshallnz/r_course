@@ -1,0 +1,502 @@
+---
+title: Shiny
+author: Jonathan Marshall
+date: 12 May 2016
+output: 
+  ioslides_presentation: 
+    highlight: tango
+---
+
+```{r, setup, echo=FALSE}
+library(knitr)
+library(shiny)
+knitr::opts_chunk$set(echo=FALSE, fig.width=8, dev.args=list(bg='transparent'), comment="")
+```
+
+# What is Shiny?
+
+## What is Shiny?
+
+- Shiny is an R package.
+
+- It includes a web-server that allows linking to R.
+
+- This allows interactive web applications (built with HTML, CSS + Javascript) to
+run R code.
+
+- Also allows the R code to describe and update the application/interface.
+
+## The R side
+
+- Shiny applications are usually built using only R-code.
+
+- There are a bunch of R functions that build up the HTML that
+defines the interface (widgets, plots, text etc.)
+
+- In addition, R functions are defined that respond to changes
+in the interface (e.g. clicks, or values selected in widgets).
+
+## Defining the interface: `ui.R`
+
+- The interface is normally defined in `ui.R`.
+
+- The function to do so is `shinyUI`, which takes as it's argument
+a composition of functions that define the layout.
+
+- These functions are basically R wrappers that produce HTML
+code (`<div>` etc.)
+
+- Most of these use the `bootstrap` javascript library to define
+layouts and widgets.
+
+## Example
+
+```{r, echo=TRUE, eval=FALSE}
+shinyUI(fluidPage(
+  titlePanel("Hello Shiny!"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("bins",
+                  "Number of bins:",
+                  min = 1,
+                  max = 50,
+                  value = 30)
+    ),
+    mainPanel(
+      plotOutput("distPlot")
+    )
+  )
+))
+```
+
+## Example
+
+- There is a `fluidPage` which creates a page layout that includes rows which
+in turn include columns.
+
+- Fluid in the sense that the width/height of the browser is taken into account
+during layout.
+
+- You then typically include `fluidRow`'s within the page that define elements
+that appear on the same row.
+
+## Example
+
+- You can also include higher-level layout tools, such as `sidebarLayout` which splits the
+page into left and right panes.
+
+- The left pane has a distinct background colour and is usually where you place input widgets/controls.
+You usually use a `sidebarPanel` for this.
+
+- The right pane is larger (2/3rds the width) and is where you'd normally place output. You usually
+use a `mainPanel` for this.
+
+## Example
+
+- Within the `sidebarPanel` and `mainPanel` you can then include other stuff.
+
+- e.g. the `sliderInput` for a slider (this is an input widget).
+
+- e.g. the `plotOutput` control where plots will end up (this is an output widget).
+
+## Defining the app: `server.R`
+
+- What the app does is defined in `server.R`.
+
+- This contains the function `shinyServer` which is passed
+a function that takes `input` and `output` as parameters.
+
+- `input` contains information from the interface widgets (as a list).
+
+- `output` contains information to pass to output widgets (e.g. plots).
+
+## Example
+
+```{r, echo=TRUE, eval=FALSE}
+shinyServer(function(input, output) {
+  output$distPlot <- renderPlot({
+    x    <- faithful[, 2]  # Old Faithful Geyser data
+    bins <- seq(min(x), max(x), length.out = input$bins + 1)
+
+    # draw the histogram with the specified number of bins
+    hist(x, breaks = bins, col = 'darkgray', border = 'white')
+  })
+})
+```
+
+## Example
+
+- Notice the `shinyServer` function is passed afunction
+of `input` and `output`.
+
+- The inner-most code contains some expressions for drawing a histogram.
+
+- This expression is wrapped in the `renderPlot` function.
+
+- The output from `renderPlot` is placed in the `distPlot` member of
+`output`.
+
+## Example: How it all works.
+
+- In `ui.R` we defined two controls:
+    - The sliderInput, which took first parameter `bins`.
+    - The plotOutput, which took first parameter `distPlot`.
+
+- In `server.R` then `plotRender` function took an expression that used
+`input$bins` and set `output$distPlot`.
+
+- The `plotRender` function is **reactive**. It re-executes automatically
+whenever any of the things it uses (e.g. `input$bins`) change.
+
+- Thus, `distPlot` is automatically updated whenever `input$bins` changes,
+which is what gives the interactive nature.
+
+## Structure of an R shiny app
+
+- Just a directory.
+
+- Containing `ui.R` and `server.R`.
+
+- RStudio automatically recognises this, and adds a **Run App* icon to
+the toolbar.
+
+- Clicking the button is equivalent to running `shiny::runApp` on that folder.
+
+## Have a play!
+
+- Copy the folder `example1`.
+
+- Load up either `ui.R` or `server.R`.
+
+- Hit `Run App`.
+
+- Try:
+    - Changing the title.
+    - Changing the minimum value for the slider bar.
+    - Change the histogram colour.
+
+## User interface elements
+
+- The easiest to start with are the ones we've seen: `titlePanel` and `sidebarLayout`.
+
+- Inside the `*Panel` functions, you can place basically any content that you like: essentially
+all the functions produce HTML.
+
+- Most of the common HTML5 tags have equivalents:
+    - `p()` is the same as `<p>` for a paragraph of text.
+    - `a()` is the same as `<a>` for a hyper-link.
+    - `div()` is the same as `<div>` for a division of text etc.
+    - `HTML` can be used to pass a character string of HTML code.
+
+## Headers
+
+- Use `h1` through `h6` for first through sixth-level headers (equivalent to single through six
+hashes in markdown).
+
+```{r, echo=TRUE, eval=FALSE}
+shinyUI(fluidPage(
+  titlePanel("A title bar"),
+  sidebarLayout(
+    sidebarPanel(),
+    mainPanel(
+      h1("First level title"),
+      h2("Second level title"),
+      h3("Third level title"),
+      h4("Fourth level title")
+    )
+  )
+))
+```
+
+## HTML functions
+
+- All the `h1` etc. functions (and most of the HTML generating functions) take additional
+arguments.
+
+- Named arguments become attributes in the HTML (e.g. `align='center'` to align `h1` tags)
+
+- Un-named arguments become children in the HTML. These can be tags themselves (i.e. other
+HTML functions such as `p()`) or plain-text which become text nodes in the HTML.
+
+```{r}
+h1("test", align="center")
+p("A paragraph containing", strong("bold"), "blue text.")
+```
+
+## HTML functions
+
+- `div` is used for a division of text (basically elements that have a given style).
+
+- `span` is the equivalent of `div` but is contained in-line an existing element.
+
+- `br` can be used for a line break (blank line).
+
+- `em` and `strong` for italics and bold.
+
+- `code` for a code block (mono-spaced font on different background).
+
+- `img` for adding images.
+
+- `tag` for creating arbitrary HTML5 tags that don't have an existing R function.
+
+## Have a play!
+
+- Try creating an app with a title, sidebar and main panel.
+
+- Have a bit of writing in the main panel (a header, some styled text).
+
+- Pop some example R code in as well formatted up as code.
+
+- Maybe add an image, or try changing the colour or alignment of text.
+
+## Widgets
+
+- All input widgets have an identifier (the name of the widget) and a label
+(that appears in your app).
+
+- In addition, they take parameters that define their scope, though most
+of these have defaults.
+
+- You can have sliders, buttons, select boxes (combobox) text or numeric
+input fields, date and range selectors, help text, radio buttons, checkboxes
+etc.
+
+- The functions are usually named `*Input()` or `*Button`.
+
+## Try out the widgets
+
+- Grab the `widgets` folder.
+
+- Load up the `ui.R`.
+
+- Run the app and play around.
+
+- Take a look through `ui.R` and see how the widgets are constructed.
+
+## Reactive output
+
+- Output that reacts to your widgets are defined by:
+
+    - placing an R `output` object in your `ui.R`.
+    - adding code to set the content of that object to `server.R`.
+
+- The output objects are `htmlOutput`, `imageOutput`, `plotOutput`,
+`tableOutput`, `textOutput`, and `uiOutput`.
+
+- What they contain are reasonably self-explanatory!
+
+## Reactive output
+
+- Each of these have a corresponding reactive function that renders
+the content of those output controls.
+
+- `renderPlot` produces a plot, `renderImage` produces an image (saved link to a file),
+`renderTable` produces a table etc.
+
+- These all take an R expression (surrounded by braces `{}`). Shiny runs the expression
+the first time the app is run, then re-runs them as-needed whenever the inputs change.
+
+## Example
+
+- Load up the `reactive/ui.R`. Add in the following `server.R`
+
+```{r, eval=FALSE, echo=TRUE}
+shinyServer(function(input, output) {
+     output$text1 <- renderText({ 
+          "You have selected this"
+     })
+  }
+)
+```
+
+- When you run it you'll see the text but it doesn't ever change, no matter
+what you do.
+
+- To make it reactive, we need to give it something that changes, i.e. something in `input`.
+
+## Example
+
+- Modify `server.R` to be
+
+```{r, eval=FALSE, echo=TRUE}
+shinyServer(function(input, output) {
+     output$text1 <- renderText({ 
+          paste("You have selected", input$var)
+     })
+  }
+)
+```
+
+- Run the app now. You should see that when you change the select input, the output changes as well.
+
+- Add another line of text to the UI and hook it up to react to the slider input.
+
+## Structuring `server.R`
+
+- There are basically three places to put R code in `server.R`.
+
+- Code placed before `shinyServer` will be run once only when your app loads. This is useful for setup code
+such as reading in data, loading packages etc.
+
+- Code placed inside `shinyServer` but outside a `render` function (or other reactive function)
+is run once whenever a user goes to your app (e.g. refreshing it in a browser).
+
+- Code placed inside `render` (or other reactive functions) runs whenever an input function it is using
+changes.
+
+## Example: using data and plots
+
+- Load up the `ui.R` and `server.R` scripts in the `census` folder.
+
+- You'll need to install the `maps` and `mapproj` packages.
+
+- Try running the app. You should get a blue map of the US.
+
+- Look through `server.R` to see how it is using data and some
+other R code.
+
+## Try making this reactive
+
+- Try hooking up the `var` select input to change the legend title.
+
+- Try also changing the `min` and `max` to use the slider values. Note that
+the range slider produces a vector of length 2 (one for the left and one
+for the right).
+
+- Try hooking up the `var` select input to change the data used for the plot. The `switch` function
+might be useful here.
+
+- Try changing colour based on the select input, or alternatively, try adding a colour select input.
+
+## Some debugging help!
+
+- A simple way to debug what is going on in shiny apps is to trace what is
+happening with different `input` values.
+
+- You can do this using `cat` (or `print`) as long as you are inside a reactive function
+when you do it.
+
+- If you are outside a reactive function, you'll find these don't work.
+
+- e.g. try adding `print(input$var)` inside the `renderPlot` function in the census app.
+
+- Now try adding it before the `renderPlot` function (but inside the `shinyServer` function).
+
+- Lastly, try wrapping it with `isolate` using `print(isolate(input$var))`.
+
+## Reactive functions
+
+- By default, the `render` functions are reactive, in that any change in the inputs that they
+use will mean re-running the expression.
+
+- This means your expressions need to be quite lean: They need to change only as much as you need
+in order to update the interface.
+
+- e.g. you don't want changing the colour of a plot to re-invoke all the processing code that was needed
+to create the data for the plot.
+
+- So it pays to break your code up so that the slow bits only run when they have to.
+
+## Example: stockVis
+
+- This uses financial data from yahoo.
+
+- You'll need to install the `quantmod` package first.
+
+- Load up the `stockvis` app and run it.
+
+- Type in a stock symbol (e.g. GOOG, AAPL, GS)
+
+- Try clicking on the `Plot y axis on log scale` button.
+
+## stockVis app
+
+- This app has a problem: Each time you toggle the log scale button, the `renderPlot` command runs.
+
+- This in-turn means `getSymbols` is run, which re-fetches the data from Yahoo. This is slow!
+
+- We can remedy this by breaking the function up into one that fetches the data and one that plots.
+
+- We use the `reactive` function for this.
+
+## Example: stockVis v2
+
+Try changing the `shinyServer` function to:
+```{r, eval=FALSE, echo=TRUE}
+dataInput <- reactive({
+  getSymbols(input$symb, src = "yahoo", 
+    from = input$dates[1],
+    to = input$dates[2],
+    auto.assign = FALSE)
+})
+output$plot <- renderPlot({    
+  chartSeries(dataInput(), theme = chartTheme("white"), 
+    type = "line", log.scale = input$log, TA = NULL)
+})
+```
+
+## Reactive functions
+
+- They're smarter! Whenever they're run, they cache their output value.
+
+- Next time they're run, they check whether the cached output value is out of date. If not, it just
+returns the cached value.
+
+- It knows whether it's out of date by monitoring it's input values.
+
+- So `dataInput` will only be computed if `input$symb` or `input$dates` change.
+
+- The neat thing is that `renderPlot` uses `dataInput`, so it will in-turn change only if `dataInput`
+or `input$log` changes.
+
+- Changing only `input$log` thus just re-plots, it doesn't download the data.
+
+## Showcase mode
+
+- You can see which bits of code are running while you play with the app by switching to showcase mode.
+
+- Run the app using
+
+```{r, echo=TRUE, eval=FALSE}
+runApp("stockvis", display.mode = 'showcase')
+```
+
+- You'll notice which bits of the `server.R` code run when you interact with the interface.
+
+## Hooking up inflation adjustment.
+
+- Change the `renderPlot` statement to:
+
+```{r, eval=FALSE, echo=TRUE}
+output$plot <- renderPlot({   
+    data <- dataInput()
+    if (input$adjust) data <- adjust(dataInput())
+    
+    chartSeries(data, theme = chartTheme("white"), 
+        type = "line", log.scale = input$log, TA = NULL)
+  })
+```
+
+- This will again be problematic when you toggle `input$log`.
+
+- Try fixing it!
+
+## Deploying apps
+
+There are three options for deploying apps:
+
+1. Give users the app and Rstudio. They run it themselves from RStudio. It's free.
+
+2. Deploy the app using a server owned by someone else (e.g. shinyapps.io by rstudio). User just needs a browser. You get a small amount of bandwidth/users for free, else you can pay for larger hosting options.
+
+3. Run a Shiny server on your network. This is usually a *nix server that runs R as well as a webserver. It's free if you maintain it yourselves. RStudio provides a support for $.
+
+## Adding apps to documents
+
+- As the app is just HTML/CSS/javascript, then you can incorporate into a markdown document.
+
+- The document must then be run from shiny though for the interactive bits to work.
+
+- Useful for presentations that you run from RStudio.
+
+- Can also be used if you link to the app (e.g. via `<iframe>`) on a shinyserver.
