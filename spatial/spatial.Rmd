@@ -7,7 +7,10 @@ output:
     highlight: tango
 ---
 
-# Overview
+```{r setup, echo=FALSE}
+library(knitr)
+knitr::opts_chunk$set(fig.width=8, fig.height=5.5, dev.args=list(bg='transparent'), comment="")
+```
 
 ## Overview
 
@@ -15,7 +18,29 @@ output:
 - Mapping
 - Coordinate transformation
 - Point process data
-- Spatial models
+- Smoothing and clustering
+
+## Packages we'll need today
+
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+library(sp)
+library(rgeos)
+library(maptools)
+library(rgdal)
+library(RColorBrewer)
+library(classInt)
+library(RgoogleMaps)
+library(googleVis)
+library(PBSmapping)
+library(spatstat)
+library(sparr)
+library(devtools)
+#devtools::install_github('jmarshallnz/meshblocknz')
+library(meshblocknz)
+```
+
+# Data types
 
 ## Data types
 
@@ -44,6 +69,8 @@ other spatial or temporal data.
 - Need to store a polygon boundary (or list of polygons) for each region plus
 a data frame for the covariates.
 - We usually use a `SpatialPolygonsDataFrame` from the `sp` package for this.
+
+# Mapping
 
 ## Mapping
 
@@ -93,16 +120,17 @@ plot(midcentral)
 
 ## Example: Midcentral DHB
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE}
 library(sp)
 library(maptools)
 midcentral <- readShapeSpatial("shape/midcentral.shp")
+par(mar=c(0,0,0,0))
 plot(midcentral)
 ```
 
 ## Example: Midcentral DHB
 
-```{r}
+```{r, fig.width=6, fig.height=4}
 names(midcentral)
 hist(midcentral$POPULATION)
 ```
@@ -166,6 +194,7 @@ plot(midcentral, col=cols)
 
 ```{r, echo=FALSE}
 cols <- cut(midcentral$AREA, quantile(midcentral$AREA))
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols)
 ```
 
@@ -182,6 +211,7 @@ plot(midcentral, col=cols, border=NA)
 ```{r, echo=FALSE}
 bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
 cols <- heat.colors(5)[bins]
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols, border=NA)
 ```
 
@@ -200,6 +230,7 @@ plot(midcentral, col=cols, border="lightgrey", lwd=0.1)
 library(RColorBrewer)
 bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
 cols <- rev(brewer.pal(5, "BuPu"))[bins]
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols, border="lightgrey", lwd=0.1)
 ```
 
@@ -212,9 +243,10 @@ to the overall narrative taken from the map.
     - a gradient for quantitative variables
     - divergent gradients for things where positive/negative differ
     - non-sequential colours for categories.
+- `RColorBrewer::display.brewer.all()` can be useful for this.
 - [Bad colour choice](http://weather.graphics/nbm/blend.php)
 
-## Using `classInt` for discretising numeric variables
+## Using `classInt` for discretising
 
 ```{r, eval=FALSE, echo=TRUE}
 library(classInt)
@@ -223,12 +255,13 @@ cols <- findColours(bins, c("red", "blue"))
 plot(midcentral, col=cols, lwd=0.2, border="lightgrey")
 ```
 
-## Using `classInt` for discretising numeric variables
+## Using `classInt` for discretising
 
 ```{r, echo=FALSE}
 library(classInt)
 bins <- classIntervals(midcentral$AREA, n=7, style="jenks")
 cols <- findColours(bins, c("red", "blue"))
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols, lwd=0.2, border="lightgrey")
 ```
 
@@ -252,7 +285,8 @@ PlotOnStaticMap(map)
 ```{r, echo=FALSE}
 library(RgoogleMaps)
 
-map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16)
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16,
+             size=c(640,440))
 PlotOnStaticMap(map)
 ```
 
@@ -262,7 +296,9 @@ PlotOnStaticMap(map)
 library(RgoogleMaps)
 
 map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16)
-zombies = data.frame(lat=rnorm(100, -40.339, 0.002), long=rnorm(100, 175.622, 0.003), case=rbinom(100, 1, 0.2)+1)
+zombies = data.frame(lat=rnorm(100, -40.339, 0.002),
+                     long=rnorm(100, 175.622, 0.003),
+                     case=rbinom(100, 1, 0.2)+1)
 PlotOnStaticMap(map, zombies$lat, zombies$lon, col=zombies$case)
 ```
 
@@ -271,7 +307,7 @@ PlotOnStaticMap(map, zombies$lat, zombies$lon, col=zombies$case)
 ```{r, echo=FALSE}
 library(RgoogleMaps)
 
-map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16, maptype="satellite")
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16, maptype="satellite", size=c(640,440))
 zombies = data.frame(lat=rnorm(100, -40.339, 0.002), long=rnorm(100, 175.622, 0.003), case=rbinom(100, 1, 0.2)+1)
 PlotOnStaticMap(map, zombies$lat, zombies$lon, col=zombies$case, pch=19)
 ```
@@ -290,29 +326,34 @@ plot(map.gv)
 
 ## Using googleVis
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE, results='asis'}
 library(googleVis)
+op <- options(gvis.plot.tag='chart')
 zombies$latlon <- paste(zombies$lat, zombies$lon, sep=":")
 zombies$text   <- ifelse(zombies$case == 2, "zombie", "normal")
 map.gv <- gvisMap(zombies, locationvar="latlon", tipvar="text",
                   options = list(showTip=T, showLine=F, enableScrollWheel=TRUE,
                            useMapTypeControl=T, width=1400,height=800))
 plot(map.gv)
+options(op)
 ```
+
+# Coordinate transformations
 
 ## Converting coordinate systems
 
-- All maps come with a projection that maps the two x/y coordinates onto the (not-spherical) earth in some way.
-- e.g. the `midcentral` dataset is using new zealand map grid projection.
+- All maps come with a projection that maps the two x/y coordinates onto the (almost) spherical earth in some way.
+- e.g. the `midcentral` dataset is using New Zealand Map Grid projection.
 - e.g. Google Maps uses WGS84 latitude and longitude.
 - It's often essential to be able to convert between these.
 - `spTransform` can use this, using `proj4` projection schemes.
 - They're somewhat archaic!
+- [http://www.spatialreference.org/](http://www.spatialreference.org/) can be useful.
 
 ## Converting coordinate systems
 
-```{r}
-library(rdgal)
+```{r, message=FALSE, warning=FALSE}
+library(rgdal)
 midcentral <- readOGR("shape/midcentral.shp", layer="midcentral")
 midcentral@proj4string
 midcentral@polygons[[1]]@labpt
@@ -335,26 +376,37 @@ PlotOnStaticMap(map, mb_centers$lat, mb_centers$lon, col="red")
 ```{r, echo=FALSE}
 mb_centers <- simplify2array(lapply(mc.lonlat@polygons, slot, 'labpt'))
 mb_centers <- data.frame(lon = mb_centers[1,], lat=mb_centers[2,])
-map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite", size=c(640,440))
 PlotOnStaticMap(map, mb_centers$lat, mb_centers$lon, col="red")
 ```
 
 ## Plotting polygons on maps
 
-```{r, echo=FALSE}
+```{r, echo=TRUE, eval=FALSE}
 library(PBSmapping) # needed for colours
 map <- GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
 # extract polygons
 mc.polys <- as.SpatialPolygons.PolygonsList(mc.lonlat@polygons)
 bins <- classIntervals(midcentral$POPULATION, n=7, style="jenks")
 cols <- findColours(bins, c("red", "blue"))
-PlotPolysOnStaticMap(map, mc.polys, col=cols)
+PlotPolysOnStaticMap(map, mc.polys, col=cols, add=FALSE)
+```
+
+## Plotting polygons on maps
+
+```{r, echo=FALSE, message=FALSE}
+library(PBSmapping) # needed for colours
+map <- GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite", size=c(640,440))
+# extract polygons
+mc.polys <- as.SpatialPolygons.PolygonsList(mc.lonlat@polygons)
+bins <- classIntervals(midcentral$POPULATION, n=7, style="jenks")
+cols <- findColours(bins, c("red", "blue"))
+PlotPolysOnStaticMap(map, mc.polys, col=cols, add=FALSE)
 ```
 
 ## Plotting data from other data frames
 
-- Given a `SpatialPolygonsDataFrame` object that has the geographic regions,
-how do we add data from another source.
+- Given a `SpatialPolygonsDataFrame` object that has the geographic regions, how do we add data from another source?
 - e.g. suppose we have another data source that defines the population of the meshblock
 in 2013 rather than 2006.
 - How do we merge them?
@@ -363,19 +415,26 @@ in 2013 rather than 2006.
 ## Plotting data from other data frames
 
 ```{r}
+#devtools::install_github('jmarshallnz/meshblocknz')
 library(meshblocknz)
 head(mb2006)
 ```
 
 ## Plotting data from other data frames
 
-```{r, echo=TRUE, eval=FALSE}
+```{r, echo=TRUE, message=FALSE}
 library(dplyr)
 midcentral@data = midcentral@data %>%
   left_join(mb2006, by=c('MB06'='MB2006')) %>%
   mutate(PopGrowth = Pop2013 - Pop2006)
 summary(midcentral$PopGrowth)
-bins <- classIntervals(midcentral$PopGrowth, n=7, style="fixed", fixedBreaks=c(-300,-30,-10,-2,2,10,30,300))
+```
+
+## Plotting data from other data frames
+
+```{r, echo=TRUE, eval=FALSE}
+bins <- classIntervals(midcentral$PopGrowth, n=7, style="fixed",
+                       fixedBreaks=c(-300,-30,-10,-2,2,10,30,300))
 cols <- findColours(bins, rev(brewer.pal(7, "RdYlBu")))
 plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
 ```
@@ -383,12 +442,9 @@ plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
 ## Plotting data from other data frames
 
 ```{r, echo=FALSE}
-library(dplyr)
-midcentral@data = midcentral@data %>%
-  left_join(mb2006) %>%
-  mutate(PopGrowth = Pop2013 - Pop2006)
 bins <- classIntervals(midcentral$PopGrowth, n=7, style="fixed", fixedBreaks=c(-300,-30,-10,-2,2,10,30,300))
 cols <- findColours(bins, rev(brewer.pal(7, "RdYlBu")))
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
 ```
 
@@ -396,11 +452,161 @@ plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
 
 ```{r, eval=FALSE}
 plot(midcentral, col=cols, border="lightgrey", lwd=0.2,
-     xlim=c(2726000, 2738000), ylim=c(6088000, 6094000))
+     xlim=c(2726000, 2738000), ylim=c(6086000, 6096000))
 ```
+
 ## Plotting data from other data frames
 
 ```{r, echo=FALSE}
+par(mar=c(0,0,0,0))
 plot(midcentral, col=cols, border="lightgrey", lwd=0.2,
-     xlim=c(2726000, 2738000), ylim=c(6088000, 6094000))
+     xlim=c(2726000, 2738000), ylim=c(6086000, 6096000))
+```
+
+# Point process data
+
+## Point process data
+
+- Point process data is a collection of points in space.
+- There may be additional information, such as `marks` associated
+with each point (e.g. for case/control data).
+- Often the location alone is the data we may have (e.g. locations
+of earthquakes).
+- We assume the observed data arise from a *point process*. i.e. they occur randomly but may be more concentrated in some areas than others.
+
+## Poisson point processes
+
+- A Poisson point process is one where we assume the observed data
+occur at locations at rates proportional to an intensity function $\lambda$ that may vary across the region.
+- i.e. the expected number of observations within some area is proportional to the average intensity $\lambda$ across that area.
+- If $\lambda$ is constant across space, then we get uniformly
+random locations.
+- Note that `uniform` here is often misinterpreted...
+
+## Examples of poisson point processes
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(spatstat)
+par(mfrow=c(2,3))
+for (i in 1:6)
+  plot(rpoispp(30))
+```
+
+## Examples: Chorley-Ribble cancer data
+
+```{r, echo=FALSE}
+plot(chorley)
+```
+
+## Chorley-Ribble data
+
+- Both lung and larynx cases are clearly clustered.
+- Possibly due to population?
+- An interesting question is whether there is differential
+risk of larynx versus lung cancer in the region.
+
+## Smoothing
+
+- We can use kernel density estimation to smooth spatial
+data.
+- The `sparr` package can be used, as can the `density` function in the `spatstat` package.
+- A key thing is getting the smoothing bandwidth right.
+- `density` usually does OK, but sometimes you need to play with
+the `adjust` parameter to give a nicer picture.
+
+## Smoothing
+
+```{r, eval=FALSE}
+lung.sm = density(chorley[chorley$marks=='lung'])
+larynx.sm = density(chorley[chorley$marks=='larynx'])
+plot(lung.sm)
+plot(larynx.sm)
+```
+
+## Smoothing: Lung cancer
+
+```{r, echo=FALSE}
+lung.sm = density(chorley[chorley$marks=='lung'])
+plot(lung.sm)
+```
+
+## Smoothing: Larynx cancer
+
+```{r, echo=FALSE}
+larynx.sm = density(chorley[chorley$marks=='larynx'])
+plot(larynx.sm)
+```
+
+## Smoothing: Relative risk
+
+- Is the risk of larynx in some areas higher than would
+be expected, given the risk of lung cancer?
+- We can do this by smoothing the risk of each and
+looking at their ratio (or the log ratio).
+- The `risk` function from the `sparr` package can do this.
+
+## Smoothing: Relative risk
+
+```{r, eval=FALSE}
+library(sparr)
+lung <- chorley[chorley$marks == 'lung',]
+larynx <- chorley[chorley$marks == 'larynx',]
+risk(larynx, lung, adaptive=TRUE)
+```
+
+## Smoothing: Relative risk
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+library(sparr)
+lung <- chorley[chorley$marks == 'lung',]
+larynx <- chorley[chorley$marks == 'larynx',]
+r = risk(larynx, lung, adaptive=TRUE, plotit = FALSE)
+```
+
+```{r, echo=FALSE}
+plot(r)
+```
+
+## Clustering
+
+- One way to test for clustering is to assess how many neighbours
+a point has and compare that to what you would expect if no clustering
+were present.
+- Ripley's K-function is one way of doing this.
+- Basically, you count the number of observations within a radius $r$
+from each observation and compare this with what you expect.
+- If the data are not clustered, you'd expect something proportional to $\pi r^2$.
+- Larger and the data are clustered, smaller and they're inhibitory (existing observations repel new ones).
+
+## Clustering
+
+```{r, eval=FALSE}
+plot(Kest(lung))
+plot(Kest(larynx))
+plot(Kinhom(lung))
+plot(Kinhom(larynx))
+```
+
+## Clustering: Lung
+
+```{r, echo=FALSE}
+plot(Kest(lung))
+```
+
+## Clustering: Larynx
+
+```{r, echo=FALSE}
+plot(Kest(larynx))
+```
+
+## Clustering: Lung (non-constant)
+
+```{r, echo=FALSE}
+plot(Kinhom(lung))
+```
+
+## Clustering: Larynx (non-constant)
+
+```{r, echo=FALSE}
+plot(Kinhom(larynx))
 ```
