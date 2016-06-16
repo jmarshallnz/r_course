@@ -1,0 +1,406 @@
+---
+title: Spatial statistics
+author: Jonathan Marshall
+date: 17 June 2016
+output: 
+  ioslides_presentation: 
+    highlight: tango
+---
+
+# Overview
+
+## Overview
+
+- Data types (Points vs Areal)
+- Mapping
+- Coordinate transformation
+- Point process data
+- Spatial models
+
+## Data types
+
+There are two main types of spatial (or spatio-temporal) data.
+
+- **Points**, where locations of data are given in long/lat or some other coordinate system.
+- **Areal**, where counts are aggregated over regions (countries, counties etc.) or values are
+given for a region (e.g. GDP by country).
+
+The type of data affects how it is modelled (and how it's mapped, but the latter
+is more obvious!)
+
+## Point data
+
+- Each observation has a location (and time).
+- May also have additional value information (e.g. elevation, case vs control indicator).
+- We normally want to do things like map where the points are.
+- And maybe model whether the points are spatially clustered or correlate with some
+other spatial or temporal data.
+- Usually a data frame is enough to store these data.
+
+## Areal data
+
+- Each observation defines a region (usually a polygon boundary describing shape and location).
+- In addition have a number of covariates for each region.
+- Need to store a polygon boundary (or list of polygons) for each region plus
+a data frame for the covariates.
+- We usually use a `SpatialPolygonsDataFrame` from the `sp` package for this.
+
+## Mapping
+
+- Data for a map consist of points, lines, polygons, and rasters.
+- A line is just a collection of joined points.
+- A polygon is just a collection of joined points where the start and end points are the same.
+- A raster is just a collection of values defined over a uniform grid of points.
+- Key thing when mapping is the background is important. It gives spatial context to the data.
+
+## Drawing maps
+
+Lots of packages are available for drawing maps in R from a variety of sources.
+
+- `sp` is the spatial package used for drawing things.
+- `maptools` can handle loading ESRI shapefiles (common format).
+- `rgeos` can handle loading shapefiles that have projections in them.
+- `dismo` and `RgoogleMaps` can be used for google maps.
+- `Rworldmap` contains maps of the world.
+- `leaflet` can be used for visualising spatial data in shiny apps (using openstreetmap maps)
+- `googleVis` can be used for interactive maps using the Google visualisation API
+
+## Shapefiles
+
+- ESRI shapefiles are one of the most readily available geospatial data.
+- Supported in a bunch of GIS packages.
+- Most countries supply data in this format.
+- Can get from [stats NZ](http://www.stats.govt.nz/browse_for_stats/Maps_and_geography/Geographic-areas/digital-boundary-files.aspx)
+
+## Areal units in NZ
+
+- There are a variety of boundaries for various adminstrative entities in NZ.
+- The lowest level of spatial areal data in NZ is the meshblock (MB).
+- These are arranged in area units (AU).
+- Which are arranged in territorial authorities (TA).
+- There's also regional councils, wards, electorates, public health areas etc.
+- Many of these don't have a 1:1 mapping. e.g. MidCentral DHB area vs MidCentral Public Health Unit.
+- Typically meshblocks have a many to 1 map with each of the other boundaries.
+
+## Example: Midcentral DHB
+
+```{r, echo=TRUE, eval=FALSE}
+library(sp)
+library(maptools)
+midcentral <- readShapeSpatial("shape/midcentral.shp")
+plot(midcentral)
+```
+
+## Example: Midcentral DHB
+
+```{r, echo=FALSE}
+library(sp)
+library(maptools)
+midcentral <- readShapeSpatial("shape/midcentral.shp")
+plot(midcentral)
+```
+
+## Example: Midcentral DHB
+
+```{r}
+names(midcentral)
+hist(midcentral$POPULATION)
+```
+
+## Example: Midcentral DHB
+
+Seems there's something wrong with the `AREA` column
+```{r}
+summary(midcentral$AREA)
+```
+But we have this information in the polygons
+```{r}
+midcentral@polygons[[1]]@area
+```
+
+## Extracting information from polygons
+
+The `SpatialPolygonsDataFrame` has a number of `slots`, one of which is `polygons`
+and the other is `data`. There's also some other things.
+```{r}
+slotNames(midcentral)
+```
+We can extract slots using the `@` operator, or using `slot`
+```{r}
+class(midcentral@polygons)
+class(slot(midcentral, 'polygons'))
+```
+
+## Extracting information from polygons
+
+To extract information from the polygons, we can use `lapply` (list apply)
+on the list to pull out what we want using the `slot` command:
+
+```{r}
+areas <- lapply(midcentral@polygons, slot, 'area')
+head(areas, n=2)
+```
+
+## Extracting information from polygons
+
+Can convert this to a vector using `unlist`
+
+```{r}
+areas <- unlist(lapply(midcentral@polygons, slot, 'area'))
+midcentral$AREA <- areas
+summary(midcentral$AREA)
+```
+
+## Plotting information on the map
+
+Say we want to colour the meshblocks by their area. To do this
+we need to assign colours to the various areas. We do this by binning
+the data and then assigning each bin a colour.
+
+```{r, eval=FALSE}
+cols <- cut(midcentral$AREA, quantile(midcentral$AREA))
+plot(midcentral, col=cols)
+```
+
+## Plotting information on the map
+
+```{r, echo=FALSE}
+cols <- cut(midcentral$AREA, quantile(midcentral$AREA))
+plot(midcentral, col=cols)
+```
+
+## Plotting information on the map
+
+```{r, eval=FALSE}
+bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
+cols <- heat.colors(5)[bins]
+plot(midcentral, col=cols, border=NA)
+```
+
+## Plotting information on the map
+
+```{r, echo=FALSE}
+bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
+cols <- heat.colors(5)[bins]
+plot(midcentral, col=cols, border=NA)
+```
+
+## Plotting information on the map
+
+```{r, eval=FALSE}
+library(RColorBrewer)
+bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
+cols <- rev(brewer.pal(5, "BuPu"))[bins]
+plot(midcentral, col=cols, border="lightgrey", lwd=0.1)
+```
+
+## Plotting information on the map
+
+```{r, echo=FALSE}
+library(RColorBrewer)
+bins <- cut(midcentral$AREA, quantile(midcentral$AREA))
+cols <- rev(brewer.pal(5, "BuPu"))[bins]
+plot(midcentral, col=cols, border="lightgrey", lwd=0.1)
+```
+
+## Colour choice
+
+- Choosing the bins and the colour can make a large difference
+to the overall narrative taken from the map.
+- In general around 5-7 shades is normally good.
+- Colour scales should be appropriate
+    - a gradient for quantitative variables
+    - divergent gradients for things where positive/negative differ
+    - non-sequential colours for categories.
+- [Bad colour choice](http://weather.graphics/nbm/blend.php)
+
+## Using `classInt` for discretising numeric variables
+
+```{r, eval=FALSE, echo=TRUE}
+library(classInt)
+bins <- classIntervals(midcentral$AREA, n=7, style="jenks")
+cols <- findColours(bins, c("red", "blue"))
+plot(midcentral, col=cols, lwd=0.2, border="lightgrey")
+```
+
+## Using `classInt` for discretising numeric variables
+
+```{r, echo=FALSE}
+library(classInt)
+bins <- classIntervals(midcentral$AREA, n=7, style="jenks")
+cols <- findColours(bins, c("red", "blue"))
+plot(midcentral, col=cols, lwd=0.2, border="lightgrey")
+```
+
+## Try it yourself
+
+- Create a map of midcentral
+- Colour using the `POPULATION` variable.
+- Try different `style` arguments to `classIntervals`.
+
+## Using google maps
+
+```{r, echo=TRUE, eval=FALSE}
+library(RgoogleMaps)
+
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16)
+PlotOnStaticMap(map)
+```
+
+## Using google maps
+
+```{r, echo=FALSE}
+library(RgoogleMaps)
+
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16)
+PlotOnStaticMap(map)
+```
+
+## Using google maps: Adding points
+
+```{r, eval=FALSE}
+library(RgoogleMaps)
+
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16)
+zombies = data.frame(lat=rnorm(100, -40.339, 0.002), long=rnorm(100, 175.622, 0.003), case=rbinom(100, 1, 0.2)+1)
+PlotOnStaticMap(map, zombies$lat, zombies$lon, col=zombies$case)
+```
+
+## Using google maps: Adding points
+
+```{r, echo=FALSE}
+library(RgoogleMaps)
+
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=16, maptype="satellite")
+zombies = data.frame(lat=rnorm(100, -40.339, 0.002), long=rnorm(100, 175.622, 0.003), case=rbinom(100, 1, 0.2)+1)
+PlotOnStaticMap(map, zombies$lat, zombies$lon, col=zombies$case, pch=19)
+```
+
+## Using googleVis
+
+```{r, echo=TRUE, eval=FALSE}
+library(googleVis)
+zombies$latlon <- paste(zombies$lat, zombies$lon, sep=":")
+zombies$text   <- ifelse(zombies$case == 2, "zombie", "normal")
+map.gv <- gvisMap(zombies, locationvar="latlon", tipvar="text",
+                  options = list(showTip=T, showLine=F, enableScrollWheel=TRUE,
+                           useMapTypeControl=T, width=1400,height=800))
+plot(map.gv)
+```
+
+## Using googleVis
+
+```{r, echo=FALSE}
+library(googleVis)
+zombies$latlon <- paste(zombies$lat, zombies$lon, sep=":")
+zombies$text   <- ifelse(zombies$case == 2, "zombie", "normal")
+map.gv <- gvisMap(zombies, locationvar="latlon", tipvar="text",
+                  options = list(showTip=T, showLine=F, enableScrollWheel=TRUE,
+                           useMapTypeControl=T, width=1400,height=800))
+plot(map.gv)
+```
+
+## Converting coordinate systems
+
+- All maps come with a projection that maps the two x/y coordinates onto the (not-spherical) earth in some way.
+- e.g. the `midcentral` dataset is using new zealand map grid projection.
+- e.g. Google Maps uses WGS84 latitude and longitude.
+- It's often essential to be able to convert between these.
+- `spTransform` can use this, using `proj4` projection schemes.
+- They're somewhat archaic!
+
+## Converting coordinate systems
+
+```{r}
+library(rdgal)
+midcentral <- readOGR("shape/midcentral.shp", layer="midcentral")
+midcentral@proj4string
+midcentral@polygons[[1]]@labpt
+mc.lonlat <- spTransform(midcentral, CRS = "+proj=longlat +datum=WGS84")
+mc.lonlat@proj4string
+mc.lonlat@polygons[[1]]@labpt
+```
+
+## Converting coordinate systems
+
+```{r, eval=FALSE}
+mb_centers <- simplify2array(lapply(mc.lonlat@polygons, slot, 'labpt'))
+mb_centers <- data.frame(lon = mb_centers[1,], lat=mb_centers[2,])
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
+PlotOnStaticMap(map, mb_centers$lat, mb_centers$lon, col="red")
+```
+
+## Converting coordinate systems
+
+```{r, echo=FALSE}
+mb_centers <- simplify2array(lapply(mc.lonlat@polygons, slot, 'labpt'))
+mb_centers <- data.frame(lon = mb_centers[1,], lat=mb_centers[2,])
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
+PlotOnStaticMap(map, mb_centers$lat, mb_centers$lon, col="red")
+```
+
+## Plotting polygons on maps
+
+```{r, echo=FALSE}
+library(PBSmapping) # needed for colours
+map <- GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
+# extract polygons
+mc.polys <- as.SpatialPolygons.PolygonsList(mc.lonlat@polygons)
+bins <- classIntervals(midcentral$POPULATION, n=7, style="jenks")
+cols <- findColours(bins, c("red", "blue"))
+PlotPolysOnStaticMap(map, mc.polys, col=cols)
+```
+
+## Plotting data from other data frames
+
+- Given a `SpatialPolygonsDataFrame` object that has the geographic regions,
+how do we add data from another source.
+- e.g. suppose we have another data source that defines the population of the meshblock
+in 2013 rather than 2006.
+- How do we merge them?
+- Can use `dplyr`. Key is that the identifiers need to be the same.
+
+## Plotting data from other data frames
+
+```{r}
+library(meshblocknz)
+head(mb2006)
+```
+
+## Plotting data from other data frames
+
+```{r, echo=TRUE, eval=FALSE}
+library(dplyr)
+midcentral@data = midcentral@data %>%
+  left_join(mb2006, by=c('MB06'='MB2006')) %>%
+  mutate(PopGrowth = Pop2013 - Pop2006)
+summary(midcentral$PopGrowth)
+bins <- classIntervals(midcentral$PopGrowth, n=7, style="fixed", fixedBreaks=c(-300,-30,-10,-2,2,10,30,300))
+cols <- findColours(bins, rev(brewer.pal(7, "RdYlBu")))
+plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
+```
+
+## Plotting data from other data frames
+
+```{r, echo=FALSE}
+library(dplyr)
+midcentral@data = midcentral@data %>%
+  left_join(mb2006) %>%
+  mutate(PopGrowth = Pop2013 - Pop2006)
+bins <- classIntervals(midcentral$PopGrowth, n=7, style="fixed", fixedBreaks=c(-300,-30,-10,-2,2,10,30,300))
+cols <- findColours(bins, rev(brewer.pal(7, "RdYlBu")))
+plot(midcentral, col=cols, border="lightgrey", lwd=0.2)
+```
+
+## Plotting data from other data frames
+
+```{r, eval=FALSE}
+plot(midcentral, col=cols, border="lightgrey", lwd=0.2,
+     xlim=c(2726000, 2738000), ylim=c(6088000, 6094000))
+```
+## Plotting data from other data frames
+
+```{r, echo=FALSE}
+plot(midcentral, col=cols, border="lightgrey", lwd=0.2,
+     xlim=c(2726000, 2738000), ylim=c(6088000, 6094000))
+```
