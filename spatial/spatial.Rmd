@@ -344,6 +344,8 @@ options(op)
 
 - All maps come with a projection that maps the two x/y coordinates onto the (almost) spherical earth in some way.
 - e.g. the `midcentral` dataset is using New Zealand Map Grid projection.
+- You can load the projection information from shapefiles using
+`readOGR` in the `rgdal` library.
 - e.g. Google Maps uses WGS84 latitude and longitude.
 - It's often essential to be able to convert between these.
 - `spTransform` can use this, using `proj4` projection schemes.
@@ -356,6 +358,11 @@ options(op)
 library(rgdal)
 midcentral <- readOGR("shape/midcentral.shp", layer="midcentral")
 midcentral@proj4string
+```
+
+## Converting coordinate systems
+
+```{r, message=FALSE, warning=FALSE}
 midcentral@polygons[[1]]@labpt
 mc.lonlat <- spTransform(midcentral, CRS = "+proj=longlat +datum=WGS84")
 mc.lonlat@proj4string
@@ -367,7 +374,8 @@ mc.lonlat@polygons[[1]]@labpt
 ```{r, eval=FALSE}
 mb_centers <- simplify2array(lapply(mc.lonlat@polygons, slot, 'labpt'))
 mb_centers <- data.frame(lon = mb_centers[1,], lat=mb_centers[2,])
-map = GetMap(center = c(lat=-40.3397633, lon=175.6212577), zoom=9, maptype="satellite")
+map = GetMap(center = c(lat=-40.3397633, lon=175.6212577),
+             zoom=9, maptype="satellite")
 PlotOnStaticMap(map, mb_centers$lat, mb_centers$lon, col="red")
 ```
 
@@ -495,7 +503,7 @@ for (i in 1:6)
 ## Examples: Chorley-Ribble cancer data
 
 ```{r, echo=FALSE}
-plot(chorley)
+plot(chorley, cols=2:1, pch=c(19,3))
 ```
 
 ## Chorley-Ribble data
@@ -517,24 +525,52 @@ the `adjust` parameter to give a nicer picture.
 ## Smoothing
 
 ```{r, eval=FALSE}
-lung.sm = density(chorley[chorley$marks=='lung'])
-larynx.sm = density(chorley[chorley$marks=='larynx'])
-plot(lung.sm)
-plot(larynx.sm)
+library(sparr)
+lung = chorley[chorley$marks=='lung']
+plot(density(lung))
+lung.bw = OS(lung)
+plot(bivariate.density(lung, pilotH = lung.bw/2, globalH = lung.bw))
+
+larynx = chorley[chorley$marks=='larynx']
+plot(density(larynx))
+larynx.bw = OS(larynx)
+plot(bivariate.density(larynx, pilotH = larynx.bw/2, globalH = larynx.bw))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+library(sparr)
+lung <- chorley[chorley$marks == 'lung',]
+larynx <- chorley[chorley$marks == 'larynx',]
+lung.bw = OS(lung)
+larynx.bw = OS(larynx)
+lung.sp = bivariate.density(lung, pilotH = lung.bw/2, globalH = lung.bw)
+larynx.sp = bivariate.density(larynx, pilotH = larynx.bw/2, globalH = larynx.bw)
+r = risk(larynx, lung, adaptive=TRUE, plotit = FALSE)
 ```
 
 ## Smoothing: Lung cancer
 
 ```{r, echo=FALSE}
-lung.sm = density(chorley[chorley$marks=='lung'])
-plot(lung.sm)
+plot(density(lung))
+```
+
+## Smoothing: Lung cancer (sparr)
+
+```{r, echo=FALSE}
+library(sparr)
+plot(lung.sp)
 ```
 
 ## Smoothing: Larynx cancer
 
 ```{r, echo=FALSE}
-larynx.sm = density(chorley[chorley$marks=='larynx'])
-plot(larynx.sm)
+plot(density(larynx))
+```
+
+## Smoothing: Larynx cancer (sparr)
+
+```{r, echo=FALSE}
+plot(larynx.sp)
 ```
 
 ## Smoothing: Relative risk
@@ -548,20 +584,10 @@ looking at their ratio (or the log ratio).
 ## Smoothing: Relative risk
 
 ```{r, eval=FALSE}
-library(sparr)
-lung <- chorley[chorley$marks == 'lung',]
-larynx <- chorley[chorley$marks == 'larynx',]
 risk(larynx, lung, adaptive=TRUE)
 ```
 
 ## Smoothing: Relative risk
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
-library(sparr)
-lung <- chorley[chorley$marks == 'lung',]
-larynx <- chorley[chorley$marks == 'larynx',]
-r = risk(larynx, lung, adaptive=TRUE, plotit = FALSE)
-```
 
 ```{r, echo=FALSE}
 plot(r)
